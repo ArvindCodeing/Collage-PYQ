@@ -1,0 +1,375 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JUT & Chaibasa PYQ Portal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="title">College PYQ</div>
+    <div class="socials">
+      <a href="https://instagram.com/yourusername" target="_blank">Instagram</a>
+      <a href="https://youtube.com/yourchannel" target="_blank">YouTube</a>
+      <a href="https://linkedin.com/in/yourprofile" target="_blank">LinkedIn</a>
+    </div>
+  </header>
+
+  <main class="main-grid">
+    <!-- Left column: JUT -->
+    <section class="panel" id="jut-panel">
+      <h2>JUT PYQ</h2>
+
+      <div class="search-wrap">
+        <input id="searchJut" class="search" placeholder="Search Subject ">
+      </div>
+
+      <div class="branches" id="jutBranches">
+        <!-- Example branch block: copy/modify in JS or directly here -->
+        <div class="branch" data-name="CSE">
+          <div class="branch-head" onclick="toggleNode(this)"> CSE</div>
+          <div class="branch-body">
+            <div class="year" data-name="2024">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="All subject">All Subject</a>
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">All Subject</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="year" data-name="2023">
+              <div class="year-head" onclick="toggleNode(this)">2023</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link1" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/link2" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="year" data-name="2022">
+              <div class="year-head" onclick="toggleNode(this)">2022</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link1" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/link2" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="year" data-name="2021">
+              <div class="year-head" onclick="toggleNode(this)">2021</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link1" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/link2" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- add more years -->
+          </div>
+        </div>
+
+        <!-- ECE branch -->
+        <div class="branch" data-name="CSE">
+          <div class="branch-head" onclick="toggleNode(this)">ECE</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- add more years -->
+          </div>
+        </div>
+
+        <!-- EE branch -->
+        <div class="branch" data-name="CSE">
+          <div class="branch-head" onclick="toggleNode(this)"> EE</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- add more years -->
+          </div>
+        </div>
+        <div class="branch" data-name="CSE">
+          <div class="branch-head" onclick="toggleNode(this)"> ME</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- add more years -->
+          </div>
+        </div>
+
+        <!-- civil branch -->
+        <div class="branch" data-name="CSE">
+          <div class="branch-head" onclick="toggleNode(this)">Civil </div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Mathematics">Mathematics</a>
+                    <a class="subject" href="https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk" target="_blank" data-name="Physics">Physics</a>
+                  </div>
+                </div>
+                <div class="semester" data-name="semester 2">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/link3" target="_blank" data-name="Programming">Programming</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- add more years -->
+          </div>
+        </div>
+        <!-- add more branches -->
+      </div>
+    </section>
+
+    <!-- Middle image / banner -->
+    <aside class="middle">
+      <img id="studyImage" src="https://i.ytimg.com/vi/CoY7KWzkyJA/maxresdefault.jpg" alt="Study Types">
+      <p class="middle-note">Click branch → year → semester → subject to open Google Drive</p>
+    </aside>
+
+    <!-- Right column: Chaibasa Engineering College -->
+    <section class="panel" id="chaibasa-panel">
+      <h2>Chaibasa Engineering College PYQ</h2>
+
+      <div class="search-wrap">
+        <input id="searchChai" class="search" placeholder="Search branch/year/subject (Chaibasa)">
+      </div>
+      <!-- add more branches -->
+
+      <!-- CSE branch -->
+      <div>
+       <div class="branches" id="chaiBranches">
+       <div class="branch" data-name="ECE">
+          <div class="branch-head" onclick="toggleNode(this)">CSE</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+                  </div>
+                 </div>
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ADV9m73iSNzR8v-ijp5WogTT2C8dCa7R/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> 
+      </div>
+
+       <!-- ECE branch -->
+      <div>
+       <div class="branches" id="chaiBranches">
+       <div class="branch" data-name="ECE">
+          <div class="branch-head" onclick="toggleNode(this)">ECE</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+                  </div>
+                 </div>
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ADV9m73iSNzR8v-ijp5WogTT2C8dCa7R/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> 
+      </div>
+
+       <!-- EE branch -->
+      <div>
+       <div class="branches" id="chaiBranches">
+       <div class="branch" data-name="ECE">
+          <div class="branch-head" onclick="toggleNode(this)">EE</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+                  </div>
+                 </div>
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ADV9m73iSNzR8v-ijp5WogTT2C8dCa7R/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> 
+      </div>
+
+       <!-- ME branch -->
+      <div>
+       <div class="branches" id="chaiBranches">
+       <div class="branch" data-name="ECE">
+          <div class="branch-head" onclick="toggleNode(this)">ME</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+                  </div>
+                 </div>
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ADV9m73iSNzR8v-ijp5WogTT2C8dCa7R/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> 
+      </div>
+
+      <!-- Civil branch -->
+      <div class="branches" id="chaiBranches">
+
+       <div class="branch" data-name="ECE">
+          <div class="branch-head" onclick="toggleNode(this)">Civil</div>
+          <div class="branch-body">
+            <div class="year" data-name="1st year">
+              <div class="year-head" onclick="toggleNode(this)">2024</div>
+              <div class="year-body">
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 1</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+                  </div>
+                 </div>
+                <div class="semester" data-name="semester 1">
+                  <div class="sem-head" onclick="toggleNode(this)">Semester 2</div>
+                  <div class="sem-body">
+                    <a class="subject" href="https://drive.google.com/file/d/1ADV9m73iSNzR8v-ijp5WogTT2C8dCa7R/view?usp=drivesdk" target="_blank" data-name="Basic Electronics">All Subject</a>
+              </div>
+            </div>
+          </div>
+        </div>
+       
+      </div>
+
+      
+
+      
+      <section>
+  </main>
+
+  <footer class="site-footer">
+    © 2025 Arvind Mode | All Rights Reserved
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
