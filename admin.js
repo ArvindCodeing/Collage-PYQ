@@ -2,205 +2,34 @@
 
 const PASSWORD = 'admin123';
 
-const defaultData = {
-  jut: {
-    CSE: {
-      2024: {
-        "semester 1": {
-          "All subject": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2022: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/link1",
-          "Physics": "https://drive.google.com/link2"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2021: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/link1",
-          "Physics": "https://drive.google.com/link2"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
+const defaultData = {};
+
+let data = null;
+
+// Load admin data preferring the project JSON file (authoritative). If fetch
+// fails, fall back to localStorage (previous admin edits) or the empty default.
+(function initAdminData(){
+  const url = 'pyq-data.json?_=' + Date.now();
+  fetch(url).then(r => {
+    if (!r.ok) throw new Error('no-file');
+    return r.json();
+  }).then(json => {
+    data = json;
+    try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
+  }).catch(() => {
+    const stored = localStorage.getItem('pyqData');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        data = deepMerge(defaultData, parsed);
+      } catch (e) {
+        data = defaultData;
       }
-    },
-    ECE: {
-      2024: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      }
-    },
-    EE: {
-      2024: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      }
-    },
-    ME: {
-      2024: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      }
-    },
-    Civil: {
-      2024: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      }
+    } else {
+      data = defaultData;
     }
-  },
-  chaibasa: {
-    CSE: {
-      2024: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      }
-    },
-    ECE: {
-      2024: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      }
-    },
-    EE: {
-      2024: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      }
-    },
-    ME: {
-      2024: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      }
-    },
-    Civil: {
-      2024: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      },
-      2023: {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      }
-    }
-  }
-};
-
-let data = defaultData;
-
-const stored = localStorage.getItem('pyqData');
-
-if (stored) {
-  const parsed = JSON.parse(stored);
-  data = deepMerge(defaultData, parsed);
-}
+  });
+})();
 
 function deepMerge(target, source) {
   const result = { ...target };
@@ -454,4 +283,22 @@ function saveData() {
     console.error('Failed to save data to localStorage', e);
     alert('Failed to save data. Check browser storage settings.');
   }
+}
+
+// Load latest pyq-data.json into admin (useful after replacing file on disk)
+function loadFromFile() {
+  const url = 'pyq-data.json?_=' + Date.now();
+  fetch(url).then(r => {
+    if (!r.ok) throw new Error('no-file');
+    return r.json();
+  }).then(json => {
+    data = json;
+    try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
+    // If admin already has a section selected, rebuild UI
+    if (typeof currentSection !== 'undefined') buildAdminSection();
+    alert('Loaded latest pyq-data.json');
+  }).catch(err => {
+    console.error('Failed to load pyq-data.json', err);
+    alert('Failed to load pyq-data.json — check the file or server.');
+  });
 }

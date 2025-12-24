@@ -185,7 +185,7 @@ const defaultData = {
           "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
         },
         "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
+          "coming soon": "https://drive.google.com/file"
         }
       }
     }
@@ -196,27 +196,34 @@ let data = null;
 
 function initData() {
   return new Promise((resolve) => {
-    const stored = localStorage.getItem('pyqData');
-    if (stored) {
-      try {
-        data = JSON.parse(stored);
-      } catch (e) {
-        data = defaultData;
-      }
-      resolve();
-      return;
-    }
-
-    // Attempt to fetch a bundled JSON file (pyq-data.json) if present
-    fetch('pyq-data.json').then(r => {
+    // Fetch the project JSON with a cache-busting query param so the browser
+    // doesn't serve a stale cached copy. If fetch fails, fall back to
+    // localStorage (previous admin edits) or the empty default.
+    const url = 'pyq-data.json?_=' + Date.now();
+    fetch(url).then(r => {
       if (!r.ok) throw new Error('no-file');
       return r.json();
     }).then(json => {
       data = json;
       try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
     }).catch(() => {
-      data = defaultData;
+      const stored = localStorage.getItem('pyqData');
+      if (stored) {
+        try { data = JSON.parse(stored); } catch (e) { data = defaultData; }
+      } else {
+        data = defaultData;
+      }
     }).finally(() => resolve());
+  });
+}
+
+// Force reload latest JSON and rebuild the UI
+function refreshData() {
+  try { localStorage.removeItem('pyqData'); } catch (e) {}
+  initData().then(() => {
+    // rebuild sections when new data loaded
+    if (data && data.jut) buildSection('jutBranches', data.jut);
+    if (data && data.chaibasa) buildSection('chaiBranches', data.chaibasa);
   });
 }
 
