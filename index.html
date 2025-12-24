@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="title">College PYQ</div>
+    <div class="title">College PYQ  </div>
       <div class="socials" role="navigation" aria-label="Social and admin links">
       <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw==" target="_blank" aria-label="Instagram">
         <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -82,8 +82,26 @@
   <div class="drawer-list">
     <a class="drawer-item" href="admin.html">Admin</a>
     <button class="drawer-item" onclick="refreshData(); closeDrawer();">Reload Data</button>
+    <label class="drawer-item theme-toggle" for="themeToggle">
+      <input id="themeToggle" type="checkbox" onchange="toggleTheme(this.checked)">
+      <span class="label">Dark mode</span>
+    </label>
     <button class="drawer-item" onclick="alert('Notes — feature placeholder')">Notes</button>
     <button class="drawer-item" onclick="alert('Contact — feature placeholder')">Contact</button>
+  </div>
+  
+  <div class="drawer-footer" aria-hidden="false">
+    <div class="drawer-footer-inner">
+      <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw==" target="_blank" aria-label="Instagram">
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="22" height="22" rx="5" ry="5" style="fill:#E1306C;stroke:none"></rect><circle cx="12" cy="12" r="3.6" style="fill:#ffffff"></circle><circle cx="12" cy="12" r="1.4" style="fill:#E1306C"></circle><circle cx="17.5" cy="6.5" r="1" style="fill:#ffffff"></circle></svg>
+      </a>
+      <a class="social youtube" href="https://youtube.com/@arvindmode" target="_blank" aria-label="YouTube">
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="22" height="16" rx="4" ry="4" style="fill:#FF0000;stroke:none"></rect><polygon points="10,8 17,12 10,16" style="fill:#FFFFFF;stroke:none"></polygon></svg>
+      </a>
+      <a class="social linkedin" href="https://www.linkedin.com/in/arvind-kumar-6baa60381" target="_blank" aria-label="LinkedIn">
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M4.98 3.5a2 2 0 1 1-.001-4 2 2 0 0 1 .001 4zM3 7h4v11H3zM9 7h4v1.6h.1c.6-1 1.9-1.6 3.4-1.6 3.6 0 4.5 2.4 4.5 5.6V18h-4v-4.4c0-1.1 0-2.5-1.6-2.5-1.6 0-1.8 1.2-1.8 2.4V18H9z"/></svg>
+      </a>
+    </div>
   </div>
 </nav>
 </body>
