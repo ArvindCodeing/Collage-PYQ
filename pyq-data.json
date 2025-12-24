@@ -121,14 +121,6 @@
   },
   "chaibasa": {
     "CSE": {
-      "2023": {
-        "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
-        },
-        "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
-        }
-      },
       "2024": {
         "semester 1": {
           "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
@@ -169,13 +161,12 @@
       }
     },
     "Civil": {
-      
       "2024": {
         "semester 1": {
-          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+          "all subject": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
         },
         "semester 2": {
-          "Basic Electronics": "https://drive.google.com/file"
+          "coming soon": "https://drive.google.com/file"
         }
       },
       "2025": {
