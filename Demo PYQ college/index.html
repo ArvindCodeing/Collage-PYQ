@@ -1,0 +1,89 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JUT & Chaibasa PYQ Portal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="title">College PYQ</div>
+      <div class="socials" role="navigation" aria-label="Social and admin links">
+      <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw==" target="_blank" aria-label="Instagram">
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <!-- Rounded square background (Instagram-like color) -->
+          <rect x="1" y="1" width="22" height="22" rx="5" ry="5" style="fill:#E1306C;stroke:none"></rect>
+          <!-- camera circle + inner lens -->
+          <circle cx="12" cy="12" r="3.6" style="fill:#ffffff"></circle>
+          <circle cx="12" cy="12" r="1.4" style="fill:#E1306C"></circle>
+          <!-- small flash dot -->
+          <circle cx="17.5" cy="6.5" r="1" style="fill:#ffffff"></circle>
+        </svg>
+      </a>
+      <a class="social youtube" href="https://youtube.com/@arvindmode" target="_blank" aria-label="YouTube">
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="4" width="22" height="16" rx="4" ry="4" style="fill:#FF0000 !important; stroke:none !important;"></rect>
+          <polygon points="10,8 17,12 10,16" style="fill:#FFFFFF !important; stroke:none !important;"></polygon>
+        </svg>
+      </a>
+      <a class="social linkedin" href="https://www.linkedin.com/in/arvind-kumar-6baa60381?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app " target="_blank" aria-label="LinkedIn">
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <path fill="currentColor" d="M4.98 3.5a2 2 0 1 1-.001-4 2 2 0 0 1 .001 4zM3 7h4v11H3zM9 7h4v1.6h.1c.6-1 1.9-1.6 3.4-1.6 3.6 0 4.5 2.4 4.5 5.6V18h-4v-4.4c0-1.1 0-2.5-1.6-2.5-1.6 0-1.8 1.2-1.8 2.4V18H9z"/>
+        </svg>
+      </a>
+      <!-- Admin moved to drawer menu -->
+    </div>
+    <button class="menu-btn" aria-label="Open menu" aria-expanded="false" onclick="toggleDrawer()">☰</button>
+  </header>
+
+  <main class="main-grid">
+    <!-- Left column: JUT -->
+    <section class="panel" id="jut-panel">
+      <h2>JUT PYQ</h2>
+
+      <div class="branches" id="jutBranches"></div>
+    </section>
+
+    <!-- Middle image / banner -->
+    <aside class="middle">
+      <img id="studyImage" src="https://i.ytimg.com/vi/CoY7KWzkyJA/maxresdefault.jpg" alt="Study Types">
+      <p class="middle-note">Click branch → year → semester → subject to open Google Drive</p>
+    </aside>
+
+    <!-- Right column: Chaibasa Engineering College -->
+    <section class="panel" id="chaibasa-panel">
+      <h2>Chaibasa Engineering College PYQ</h2>
+
+      <div class="branches" id="chaiBranches"></div>
+
+      
+
+      
+      <section>
+  </main>
+
+  <footer class="site-footer">
+    © 2025 Arvind Mode | All Rights Reserved
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
+<!-- Right-side drawer and overlay -->
+<div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()" aria-hidden="true"></div>
+<nav id="sideDrawer" class="side-drawer" aria-hidden="true">
+  <div class="drawer-header">
+    <div class="drawer-title">Menu</div>
+    <button class="drawer-close" aria-label="Close menu" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-list">
+    <a class="drawer-item" href="admin.html">Admin</a>
+    <button class="drawer-item" onclick="alert('Notes — feature placeholder')">Notes</button>
+    <button class="drawer-item" onclick="alert('Contact — feature placeholder')">Contact</button>
+  </div>
+</nav>
+</body>
+</html>

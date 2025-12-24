@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin - College PYQ Portal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="title">Admin Panel</div>
+  </header>
+
+  <main class="main-grid">
+    <section class="panel admin-panel" id="admin-panel">
+      <h2>Admin Access</h2>
+
+      <div id="password-section" class="admin-form-wrap">
+        <form id="loginForm" class="admin-form" onsubmit="checkPassword(event)">
+          <label for="password" class="sr-only">Admin password</label>
+          <input type="password" id="password" class="input" placeholder="Enter password" aria-label="Admin password">
+          <button class="btn primary" type="submit">Login</button>
+        </form>
+        <div id="login-help" class="muted" style="font-size:13px;margin-top:8px">Use the admin password to manage PYQ data.</div>
+      </div>
+
+      <div id="admin-content" style="display:none;" class="admin-content">
+        <div class="admin-controls">
+          <div class="row">
+            <label for="section-select">Section</label>
+            <select id="section-select">
+              <option value="jut">JUT PYQ</option>
+              <option value="chaibasa">Chaibasa Engineering College PYQ</option>
+            </select>
+            <button class="btn" onclick="loadSection()">Load</button>
+          </div>
+
+          <div class="row">
+            <button class="btn" onclick="exportData()">Export JSON</button>
+            <label class="file-wrap">
+              <input type="file" id="importFile" accept="application/json">
+              <span class="file-label">Choose JSON</span>
+            </label>
+            <label class="merge-label"><input type="checkbox" id="mergeImport"> Merge</label>
+            <button class="btn" onclick="importData()">Import</button>
+          </div>
+        </div>
+
+        <div id="section-content" class="section-content"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    © 2025 Arvind Mode | All Rights Reserved
+  </footer>
+
+  <script src="admin.js"></script>
+</body>
+</html>

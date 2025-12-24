@@ -1,0 +1,189 @@
+{
+  "jut": {
+    "CSE": {
+      "2021": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/link1",
+          "Physics": "https://drive.google.com/link2"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2022": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/link1",
+          "Physics": "https://drive.google.com/link2"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2023": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2024": {
+        "semester 1": {
+          "All subject": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      }
+    },
+    "ECE": {
+      "2023": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2024": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      }
+    },
+    "EE": {
+      "2023": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2024": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      }
+    },
+    "ME": {
+      "2023": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2024": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      }
+    },
+    "Civil": {
+      "2023": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      },
+      "2024": {
+        "semester 1": {
+          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
+          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Programming": "https://drive.google.com/link3"
+        }
+      }
+    }
+  },
+  "chaibasa": {
+    "CSE": {
+      "2023": {
+        "semester 1": {
+          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Basic Electronics": "https://drive.google.com/file"
+        }
+      },
+      "2024": {
+        "semester 1": {
+          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Basic Electronics": "https://drive.google.com"
+        }
+      }
+    },
+    "ECE": {
+      "2024": {
+        "semester 1": {
+          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Basic Electronics": "https://drive.google.com/file"
+        }
+      }
+    },
+    "EE": {
+      "2024": {
+        "semester 1": {
+          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Basic Electronics": "https://drive.google.com/file"
+        }
+      }
+    },
+    "ME": {
+      "2024": {
+        "semester 1": {
+          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Basic Electronics": "https://drive.google.com/file"
+        }
+      }
+    },
+    "Civil": {
+      
+      "2024": {
+        "semester 1": {
+          "Basic Electronics": "https://drive.google.com/file/d/1ALPsKqNAdbiPuGEgDzwWst-L_wCtzA97/view?usp=drivesdk"
+        },
+        "semester 2": {
+          "Basic Electronics": "https://drive.google.com/file"
+        }
+      },
+      "2025": {
+        "semester 1": {
+          "1st mid semester": "https://drive.google.com/file/d/1OLHk6wmeIsdg5e6qgofHaQjMFjmmlBGY/view",
+          "2nd mid semester": "https://drive.google.com/file/d/1OR65S0YzeD1o_3Noo-Q3jHfdr3V3xflR/view"
+        }
+      }
+    }
+  }
+}
