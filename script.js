@@ -194,6 +194,37 @@ const defaultData = {
 
 let data = null;
 
+// Theme helpers: persist user's theme preference and apply on load
+function applyTheme(theme){
+  if(theme === 'dark') document.documentElement.setAttribute('data-theme','dark');
+  else document.documentElement.removeAttribute('data-theme');
+}
+
+function toggleTheme(enabled){
+  const theme = enabled ? 'dark' : 'light';
+  applyTheme(theme);
+  try { localStorage.setItem('pyqTheme', theme); } catch (e) {}
+  const lbl = document.querySelector('.theme-toggle .label');
+  if (lbl) lbl.textContent = enabled ? 'Dark mode: On' : 'Dark mode: Off';
+}
+
+function applyThemeOnLoad(){
+  try{
+    let theme = localStorage.getItem('pyqTheme');
+    if(!theme){
+      // respect system preference when no explicit choice
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      theme = prefersDark ? 'dark' : 'light';
+    }
+    applyTheme(theme);
+    const cb = document.getElementById('themeToggle');
+    if(cb) cb.checked = (theme === 'dark');
+    const lbl = document.querySelector('.theme-toggle .label');
+    if (lbl) lbl.textContent = (theme === 'dark') ? 'Dark mode: On' : 'Dark mode: Off';
+  }catch(e){console.error(e)}
+}
+
+
 function initData() {
   return new Promise((resolve) => {
     // Fetch the project JSON with a cache-busting query param so the browser
@@ -330,6 +361,7 @@ function setupSearch(inputId, containerId){
 
 // initialize
 document.addEventListener('DOMContentLoaded', function(){
+  applyThemeOnLoad();
   initData().then(() => {
     buildSection('jutBranches', data.jut);
     buildSection('chaiBranches', data.chaibasa);

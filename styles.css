@@ -5,13 +5,37 @@
   --accent:#2c3e50;
   --muted:#7f8c8d;
   --primary:#2980b9;
+  --text:#222;
+  --panel-bg:var(--card);
+  --node-bg:#f7fbfd;
+  --node-border:#e6eef5;
+  --subject-bg:#eef7ff;
+  --subject-hover:#dff0ff;
+  --subject-border:rgba(41,128,185,0.08);
+  --link-color:var(--primary);
+}
+/* Dark theme variables (applied when document has data-theme="dark") */
+[data-theme="dark"]{
+  --bg:#0f1720;
+  --card:#0b1220;
+  --accent:#cbd5e1;
+  --muted:#94a3b8;
+  --primary:#3b82f6;
+  --text:#cbd5e1;
+  --panel-bg:var(--card);
+  --node-bg:#071021;
+  --node-border:#102032;
+  --subject-bg:#071827;
+  --subject-hover:#0b2234;
+  --subject-border:rgba(59,130,246,0.08);
+  --link-color:var(--primary);
 }
 *{box-sizing:border-box}
 body{
   margin:0;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
   background:var(--bg);
-  color:#222;
+  color:var(--text);
   -webkit-font-smoothing:antialiased;
 }
 .site-header{
@@ -19,12 +43,13 @@ body{
   justify-content:space-between;
   align-items:center;
   padding:18px 28px;
-  background:#cacaca5d;
-  color:#222;
-  box-shadow:0 2px 12px rgba(34,36,38,0.08);
+  background: linear-gradient(90deg, rgba(41,128,185,0.12), rgba(255,192,79,0.06));
+  color:var(--text);
+  box-shadow:0 6px 24px rgba(2,6,23,0.06);
   border-bottom:1px solid rgba(0,0,0,0.04);
 }
-.site-header .title{font-size:20px;font-weight:700;color:var(--accent)}
+.site-header .title{font-size:22px;font-weight:800;color:var(--accent);line-height:1}
+.site-header .subtitle{font-size:12px;color:var(--muted);font-weight:600;margin-top:4px}
 .site-header .socials a{color:var(--muted);margin-left:12px;text-decoration:none;font-weight:600}
 .site-header .socials a:hover{color:var(--primary)}
 .site-header .socials a.linkedin{color:#0A66C2}
@@ -58,6 +83,8 @@ body{
   min-height:320px;
 }
 .panel h2{margin:0 0 12px 0;color: #fdb436;font-size:18px}
+/* Slightly stronger panel header */
+.panel h2{margin:0 0 12px 0;color: #fdb436;font-size:20px;letter-spacing:0.4px}
 .middle{
   display:flex;
   flex-direction:column;
@@ -87,12 +114,12 @@ body{
 
 /* collapsible nodes */
 .branch, .year, .semester{
-  background:#f7fbfd;
+  background:var(--node-bg);
   border-radius:8px;
   margin:8px 0;
   padding:8px;
   cursor:pointer;
-  border:1px solid #e6eef5;
+  border:1px solid var(--node-border);
 }
 .branch-head, .year-head, .sem-head{
   font-weight:700;color:var(--accent);
@@ -112,14 +139,14 @@ body{
   display:inline-block;
   margin:6px 6px 6px 0;
   padding:6px 10px;
-  background:#eef7ff;
-  color:var(--primary);
+  background:var(--subject-bg);
+  color:var(--link-color, var(--primary));
   border-radius:6px;
   text-decoration:none;
-  border:1px solid rgba(41,128,185,0.08);
+  border:1px solid var(--subject-border, rgba(41,128,185,0.08));
   font-size:14px;
 }
-.subject:hover{background:#dff0ff}
+.subject:hover{background:var(--subject-hover)}
 
 /* admin buttons */
 .branch-head button, .year-head button, .sem-head button, .subject + button {
@@ -205,6 +232,23 @@ body{
 .side-drawer .drawer-list{padding:12px;display:flex;flex-direction:column;gap:8px}
 .side-drawer .drawer-item{display:block;padding:10px 12px;border-radius:8px;background:transparent;border:0;text-align:left;color:var(--accent);text-decoration:none;cursor:pointer}
 .side-drawer .drawer-item:hover{background:rgba(41,128,185,0.06)}
+
+/* Drawer footer with social icons */
+.drawer-footer{margin-top:auto;padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:transparent}
+.drawer-footer-inner{display:flex;gap:10px;align-items:center;justify-content:flex-start}
+.drawer-footer .social{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:8px;background:transparent}
+.drawer-footer .social svg{width:20px;height:20px}
+.drawer-footer .social.instagram{background:transparent}
+.drawer-footer .social.youtube{background:transparent}
+.drawer-footer .social.linkedin{background:transparent}
+
+/* Theme toggle styles */
+.theme-toggle{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px}
+.theme-toggle input[type=checkbox]{width:40px;height:22px;appearance:none;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;outline:none;border:0}
+.theme-toggle input[type=checkbox]::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .18s ease}
+.theme-toggle input[type=checkbox]:checked{background:var(--primary)}
+.theme-toggle input[type=checkbox]:checked::after{transform:translateX(18px)}
+.theme-toggle .label{font-size:15px;color:var(--accent)}
 
 @media (min-width:1001px){
   /* desktop: keep drawer accessible but hide overlay by default */
