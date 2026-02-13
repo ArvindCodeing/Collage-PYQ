@@ -68,6 +68,24 @@
     © 2025 Arvind Mode | All Rights Reserved
   </footer>
 
+  <!-- Firebase FCM (web) - add your Firebase config below -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js"></script>
+  <script>
+    // Firebase project credentials (provided)
+    const firebaseConfig = {
+      apiKey: "AIzaSyALNiis2UEzQAP_vRmlzI_9ShivO2wEHFA",
+      authDomain: "collegepyq-120f7.firebaseapp.com",
+      projectId: "collegepyq-120f7",
+      storageBucket: "collegepyq-120f7.firebasestorage.app",
+      messagingSenderId: "726374864349",
+      appId: "1:726374864349:web:3255f152e945e715191234",
+      measurementId: "G-4GQ7YKGDBV"
+    };
+    // initialize here so `firebase` is available to `script.js`
+    try { firebase.initializeApp(firebaseConfig); } catch(e) { console.warn('Firebase init skipped or duplicate', e); }
+  </script>
+
   <script src="script.js"></script>
 </body>
 </html>

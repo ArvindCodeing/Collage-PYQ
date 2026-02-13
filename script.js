@@ -1,5 +1,7 @@
 // script.js
 
+
+
 // Data structure
 const defaultData = {
   jut: {
@@ -365,6 +367,8 @@ document.addEventListener('DOMContentLoaded', function(){
   initData().then(() => {
     buildSection('jutBranches', data.jut);
     buildSection('chaiBranches', data.chaibasa);
+  }).finally(() => {
+    if (typeof initFCM === 'function') initFCM();
   });
 });
 
@@ -420,3 +424,53 @@ function toggleDrawer(){
 window.addEventListener('keydown', function(e){
   if(e.key === 'Escape') closeDrawer();
 });
+
+// ----------------------
+// Firebase Cloud Messaging setup (web)
+// NOTE: Browsers require user permission for notifications. It is not possible
+// to receive push notifications when the user has not granted permission.
+// Replace placeholders (Firebase config in index.html and VAPID key) with your values.
+// ----------------------
+function initFCM(){
+  if (!('serviceWorker' in navigator) || !('Notification' in window) || !window.firebase) return;
+  navigator.serviceWorker.register('firebase-messaging-sw.js')
+    .then(reg => {
+      console.log('SW registered for FCM:', reg);
+      try {
+        const messaging = firebase.messaging();
+        // If permission already granted, attempt to get token; otherwise request it.
+        if (Notification.permission === 'granted') {
+          getFCMToken(messaging);
+        } else {
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') getFCMToken(messaging);
+            else console.warn('Notification permission was not granted');
+          });
+        }
+
+        // Handle messages when page is in foreground
+        messaging.onMessage(payload => {
+          console.log('FCM foreground message:', payload);
+          const title = payload.notification?.title || 'Notification';
+          const options = { body: payload.notification?.body, icon: payload.notification?.icon };
+          // show notification via service worker registration for consistent UX
+          navigator.serviceWorker.getRegistration().then(swReg => { if (swReg) swReg.showNotification(title, options); });
+        });
+      } catch(e){ console.error('FCM init error', e); }
+    }).catch(err => console.error('Service Worker registration failed:', err));
+}
+
+function getFCMToken(messaging){
+  // Replace with VAPID key from Firebase console -> Cloud Messaging -> Web Push certificates
+  const vapidKey = 'BOi88OGzqk9sbxLIfSrtCp47TLs7umMsRlYWGvWo6w3BvmebQsbvBwYkmDWblV9yxhd25q5AdZ9q2OoXgGrgzYY';
+  messaging.getToken({ vapidKey }).then((currentToken) => {
+    if (currentToken) {
+      console.log('FCM registration token:', currentToken);
+      // TODO: send this token to your server or admin panel so you can target this client
+    } else {
+      console.warn('No registration token available. Request permission to generate one.');
+    }
+  }).catch((err) => {
+    console.error('An error occurred while retrieving token.', err);
+  });
+}
