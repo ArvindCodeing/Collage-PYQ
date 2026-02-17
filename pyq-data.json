@@ -1,24 +1,6 @@
 {
   "jut": {
     "CSE": {
-      "2021": {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/link1",
-          "Physics": "https://drive.google.com/link2"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
-      "2022": {
-        "semester 1": {
-          "Mathematics": "https://drive.google.com/link1",
-          "Physics": "https://drive.google.com/link2"
-        },
-        "semester 2": {
-          "Programming": "https://drive.google.com/link3"
-        }
-      },
       "2023": {
         "semester 1": {
           "Mathematics": "https://drive.google.com/file/d/1Ao9gvwFXeB5fsp1huf-APdnQhAD5dytd/view?usp=drivesdk",
@@ -30,11 +12,10 @@
       },
       "2024": {
         "semester 1": {
-          "All subject": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+          "All subject": "https://drive.google.com/file/d/1QDJgdhQnWZ-XSqaiW1G_sZiT8MKGtP0s/view?usp=drivesdk"
         },
         "semester 2": {
-          "Programming": "https://drive.google.com/link3"
+          "Coming Soon": "https://drive.google.com/link3"
         }
       }
     },
@@ -50,8 +31,7 @@
       },
       "2024": {
         "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+          "All Subject": "https://drive.google.com/file/d/1QDJgdhQnWZ-XSqaiW1G_sZiT8MKGtP0s/view?usp=drivesdk"
         },
         "semester 2": {
           "Programming": "https://drive.google.com/link3"
@@ -70,8 +50,7 @@
       },
       "2024": {
         "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+          "All Subject": "https://drive.google.com/file/d/1QDJgdhQnWZ-XSqaiW1G_sZiT8MKGtP0s/view?usp=drivesdk"
         },
         "semester 2": {
           "Programming": "https://drive.google.com/link3"
@@ -90,8 +69,7 @@
       },
       "2024": {
         "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+          "All 3 Subject": "https://drive.google.com/file/d/1QDJgdhQnWZ-XSqaiW1G_sZiT8MKGtP0s/view?usp=drivesdk"
         },
         "semester 2": {
           "Programming": "https://drive.google.com/link3"
@@ -110,8 +88,7 @@
       },
       "2024": {
         "semester 1": {
-          "Mathematics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk",
-          "Physics": "https://drive.google.com/file/d/17pB8OX1IvU2j2o469omUiTVmhZ7eVEs8/view?usp=drivesdk"
+          "All 3 Subject": "https://drive.google.com/file/d/1QDJgdhQnWZ-XSqaiW1G_sZiT8MKGtP0s/view?usp=drivesdk"
         },
         "semester 2": {
           "Programming": "https://drive.google.com/link3"
