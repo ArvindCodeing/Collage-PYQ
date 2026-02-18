@@ -369,6 +369,13 @@ document.addEventListener('DOMContentLoaded', function(){
     buildSection('chaiBranches', data.chaibasa);
   }).finally(() => {
     if (typeof initFCM === 'function') initFCM();
+    // trigger header social icons drop-in animation once on page load
+    try{
+      setTimeout(() => {
+        const socials = document.querySelector('.site-header .socials');
+        if(socials) socials.classList.add('animate');
+      }, 180);
+    }catch(e){console.warn(e)}
   });
 });
 
