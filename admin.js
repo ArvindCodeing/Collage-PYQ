@@ -5,6 +5,7 @@ const PASSWORD = 'admin123';
 const defaultData = {};
 
 let data = null;
+let currentSection = '';
 
 // Load admin data preferring the project JSON file (authoritative). If fetch
 // fails, fall back to localStorage (previous admin edits) or the empty default.
@@ -43,94 +44,161 @@ function deepMerge(target, source) {
   return result;
 }
 
-function checkPassword() {
-  // support being called from form submit or button click
-  if (window.event && window.event.preventDefault) window.event.preventDefault();
+// --- Custom Modal ---
+function showModal(title, message, withInput = false, defaultValue = '') {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('adminModal');
+    const titleEl = document.getElementById('modalTitle');
+    const messageEl = document.getElementById('modalMessage');
+    const inputEl = document.getElementById('modalInput');
+    const cancelBtn = document.getElementById('modalCancel');
+    const confirmBtn = document.getElementById('modalConfirm');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    
+    if (withInput) {
+      inputEl.style.display = 'block';
+      inputEl.value = defaultValue;
+    } else {
+      inputEl.style.display = 'none';
+      inputEl.value = '';
+    }
+
+    const cleanup = () => {
+      overlay.classList.remove('show');
+      cancelBtn.onclick = null;
+      confirmBtn.onclick = null;
+    };
+
+    cancelBtn.onclick = () => {
+      cleanup();
+      resolve(null); // returning null means cancelled
+    };
+
+    confirmBtn.onclick = () => {
+      cleanup();
+      resolve(withInput ? inputEl.value : true);
+    };
+
+    overlay.classList.add('show');
+    if(withInput) inputEl.focus();
+  });
+}
+
+async function checkPassword(e) {
+  if (e && e.preventDefault) e.preventDefault();
   const pwdEl = document.getElementById('password');
   const pwd = pwdEl ? pwdEl.value : '';
   if (pwd === PASSWORD) {
     document.getElementById('password-section').style.display = 'none';
     document.getElementById('admin-content').style.display = 'block';
-    // clear password input for safety
     if (pwdEl) pwdEl.value = '';
+    loadSection();
   } else {
-    // show inline helper rather than alert
     const help = document.getElementById('login-help');
     if (help) {
       help.textContent = 'Wrong password. Try again.';
       help.style.color = 'crimson';
     } else {
-      alert('Wrong password');
+      await showModal('Error', 'Wrong password', false);
     }
   }
 }
 
 function loadSection() {
-  currentSection = document.getElementById('section-select').value;
+  const sel = document.getElementById('section-select');
+  currentSection = sel ? sel.value : 'jut';
   buildAdminSection();
 }
 
+const iconEdit = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>`;
+const iconDelete = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+const iconAdd = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>`;
+const iconToggle = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+
 function buildAdminSection() {
   const container = document.getElementById('section-content');
+  if(!container) return;
   container.innerHTML = '';
+  
+  if(!data || !data[currentSection]) return;
+  
   const sectionData = data[currentSection];
   for (const branchName in sectionData) {
     const branchDiv = document.createElement('div');
     branchDiv.className = 'branch';
     branchDiv.innerHTML = `
-      <div class="branch-head">
-        <span class="toggler" onclick="toggleNode(this)">${branchName}</span>
+      <div class="branch-head" onclick="toggleNode(this)">
+        <span class="toggler">${iconToggle}</span> ${branchName}
       </div>
       <div class="branch-body">
+        <div class="body-inner">
         ${Object.keys(sectionData[branchName]).sort((a,b)=>b-a).map(year => `
           <div class="year">
-            <div class="year-head">
-              <span class="toggler" onclick="toggleNode(this)">${year}</span>
-              <button onclick="editYear('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}')">Edit</button>
-              <button onclick="deleteYear('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}')">Delete</button>
+            <div class="year-head" onclick="toggleNode(this)">
+              <span class="toggler">${iconToggle}</span> ${year}
+              <div class="action-bar" onclick="event.stopPropagation()">
+                <button class="btn-icon edit" onclick="editYear('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}')" aria-label="Edit">${iconEdit}</button>
+                <button class="btn-icon" onclick="deleteYear('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}')" aria-label="Delete">${iconDelete}</button>
+              </div>
             </div>
             <div class="year-body">
+              <div class="body-inner">
               ${Object.keys(sectionData[branchName][year]).map(sem => `
                 <div class="semester">
-                  <div class="sem-head">
-                    <span class="toggler" onclick="toggleNode(this)">${sem}</span>
-                    <button onclick="editSemester('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}')">Edit</button>
-                    <button onclick="deleteSemester('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}')">Delete</button>
+                  <div class="sem-head" onclick="toggleNode(this)">
+                    <span class="toggler">${iconToggle}</span> ${sem}
+                    <div class="action-bar" onclick="event.stopPropagation()">
+                      <button class="btn-icon edit" onclick="editSemester('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}')" aria-label="Edit">${iconEdit}</button>
+                      <button class="btn-icon" onclick="deleteSemester('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}')" aria-label="Delete">${iconDelete}</button>
+                    </div>
                   </div>
                   <div class="sem-body">
+                    <div class="body-inner">
                     ${Object.keys(sectionData[branchName][year][sem]).map(subject => `
-                      <div>
-                        <a class="subject" href="${sectionData[branchName][year][sem][subject]}" target="_blank">${subject}</a>
-                        <button onclick="editSubject('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}')">Edit</button>
-                        <button onclick="deleteSubject('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}')">Delete</button>
+                      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                        <a class="subject" href="${sectionData[branchName][year][sem][subject]}" target="_blank" style="margin:0; flex:1;">${subject}</a>
+                        <button class="btn-icon edit" onclick="editSubject('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}')" aria-label="Edit">${iconEdit}</button>
+                        <button class="btn-icon" onclick="deleteSubject('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}', '${subject.replace(/'/g, "\\'")}')" aria-label="Delete">${iconDelete}</button>
                       </div>
                     `).join('')}
+                    <div class="admin-add-row">
+                      <input type="text" class="input" id="subjectInput-${branchName.replace(/'/g, '')}-${year.replace(/'/g, '')}-${sem.replace(/'/g, '')}" placeholder="Subject name">
+                      <input type="text" class="input" id="linkInput-${branchName.replace(/'/g, '')}-${year.replace(/'/g, '')}-${sem.replace(/'/g, '')}" placeholder="Google Drive Link">
+                      <button class="btn primary" onclick="addSubject('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}')">${iconAdd} Add</button>
+                    </div>
+                    </div>
                   </div>
-                  <input type="text" id="subjectInput-${branchName.replace(/'/g, '')}-${year.replace(/'/g, '')}-${sem.replace(/'/g, '')}" placeholder="Subject"> <input type="text" id="linkInput-${branchName.replace(/'/g, '')}-${year.replace(/'/g, '')}-${sem.replace(/'/g, '')}" placeholder="Link"> <button onclick="addSubject('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}', '${sem.replace(/'/g, "\\'")}')">Add Subject</button>
                 </div>
               `).join('')}
+              <div class="admin-add-row">
+                <input type="text" class="input" id="semInput-${branchName.replace(/'/g, '')}-${year.replace(/'/g, '')}" placeholder="Enter semester (e.g. semester 3)">
+                <button class="btn primary" onclick="addSemester('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}')">${iconAdd} Add Sem</button>
+              </div>
+              </div>
             </div>
-            <input type="text" id="semInput-${branchName.replace(/'/g, '')}-${year.replace(/'/g, '')}" placeholder="Enter semester"> <button onclick="addSemester('${branchName.replace(/'/g, "\\'")}', '${year.replace(/'/g, "\\'")}')">Add Semester</button>
           </div>
         `).join('')}
+        <div class="admin-add-row">
+          <input type="number" class="input" id="yearInput-${branchName.replace(/'/g, '')}" placeholder="Enter year (e.g. 2025)">
+          <button class="btn primary" onclick="addYear('${branchName.replace(/'/g, "\\'")}')">${iconAdd} Add Year</button>
+        </div>
+        </div>
       </div>
-      <input type="text" id="yearInput-${branchName.replace(/'/g, '')}" placeholder="Enter year"> <button onclick="addYear('${branchName.replace(/'/g, "\\'")}')">Add Year</button>
     `;
     container.appendChild(branchDiv);
   }
 }
 
 function toggleNode(el) {
-  const head = el.parentElement; // .branch-head / .year-head / .sem-head
-  const parent = head.parentElement; // .branch / .year / .semester
+  const parent = el.parentElement;
   const body = parent.querySelector(':scope > .branch-body, :scope > .year-body, :scope > .sem-body');
-  if (body) {
-    const opened = body.classList.toggle('active');
-    head.classList.toggle('open', opened);
-  }
+  if (body) body.classList.toggle('active');
+  el.classList.toggle('open');
 }
 
-function addYear(branch) {
+async function addYear(branch) {
   const input = document.getElementById('yearInput-' + branch.replace(/'/g, ''));
   const year = input.value.trim();
   if (year && !data[currentSection][branch][year]) {
@@ -139,13 +207,13 @@ function addYear(branch) {
     saveData();
     buildAdminSection();
   } else if (year) {
-    alert('Year already exists');
+    await showModal('Error', 'Year already exists.', false);
   }
 }
 
-function editYear(branch, oldYear) {
-  const newYear = prompt('Enter new year:', oldYear);
-  if (newYear && newYear !== oldYear) {
+async function editYear(branch, oldYear) {
+  const newYear = await showModal('Edit Year', `Enter new year:`, true, oldYear);
+  if (newYear && newYear.trim() !== '' && newYear !== oldYear) {
     data[currentSection][branch][newYear] = data[currentSection][branch][oldYear];
     delete data[currentSection][branch][oldYear];
     saveData();
@@ -153,15 +221,16 @@ function editYear(branch, oldYear) {
   }
 }
 
-function deleteYear(branch, year) {
-  if (confirm(`Delete year ${year}?`)) {
+async function deleteYear(branch, year) {
+  const confirmed = await showModal('Delete Year', `Are you sure you want to delete year ${year}?`, false);
+  if (confirmed) {
     delete data[currentSection][branch][year];
     saveData();
     buildAdminSection();
   }
 }
 
-function addSemester(branch, year) {
+async function addSemester(branch, year) {
   const input = document.getElementById('semInput-' + branch.replace(/'/g, '') + '-' + year.replace(/'/g, ''));
   const sem = input.value.trim();
   if (sem && !data[currentSection][branch][year][sem]) {
@@ -170,13 +239,13 @@ function addSemester(branch, year) {
     saveData();
     buildAdminSection();
   } else if (sem) {
-    alert('Semester already exists');
+    await showModal('Error', 'Semester already exists.', false);
   }
 }
 
-function editSemester(branch, year, oldSem) {
-  const newSem = prompt('Enter new semester:', oldSem);
-  if (newSem && newSem !== oldSem) {
+async function editSemester(branch, year, oldSem) {
+  const newSem = await showModal('Edit Semester', `Enter new semester:`, true, oldSem);
+  if (newSem && newSem.trim() !== '' && newSem !== oldSem) {
     data[currentSection][branch][year][newSem] = data[currentSection][branch][year][oldSem];
     delete data[currentSection][branch][year][oldSem];
     saveData();
@@ -184,15 +253,16 @@ function editSemester(branch, year, oldSem) {
   }
 }
 
-function deleteSemester(branch, year, sem) {
-  if (confirm(`Delete semester ${sem}?`)) {
+async function deleteSemester(branch, year, sem) {
+  const confirmed = await showModal('Delete Semester', `Are you sure you want to delete semester ${sem}?`, false);
+  if (confirmed) {
     delete data[currentSection][branch][year][sem];
     saveData();
     buildAdminSection();
   }
 }
 
-function addSubject(branch, year, sem) {
+async function addSubject(branch, year, sem) {
   const subjectInput = document.getElementById('subjectInput-' + branch.replace(/'/g, '') + '-' + year.replace(/'/g, '') + '-' + sem.replace(/'/g, ''));
   const linkInput = document.getElementById('linkInput-' + branch.replace(/'/g, '') + '-' + year.replace(/'/g, '') + '-' + sem.replace(/'/g, ''));
   const subject = subjectInput.value.trim();
@@ -204,23 +274,26 @@ function addSubject(branch, year, sem) {
     saveData();
     buildAdminSection();
   } else if (subject) {
-    alert('Subject already exists or invalid input');
+    await showModal('Error', 'Subject already exists or invalid link.', false);
   }
 }
 
-function editSubject(branch, year, sem, oldSubject) {
-  const newSubject = prompt('Enter new subject name:', oldSubject);
-  const link = prompt('Enter new link:', data[currentSection][branch][year][sem][oldSubject]);
-  if (newSubject && link) {
-    delete data[currentSection][branch][year][sem][oldSubject];
-    data[currentSection][branch][year][sem][newSubject] = link;
+async function editSubject(branch, year, sem, oldSubject) {
+  const newSubject = await showModal('Edit Subject', `Enter new subject name:`, true, oldSubject);
+  if (!newSubject || newSubject.trim() === '') return;
+  
+  const link = await showModal('Edit Link', `Enter new link for ${newSubject}:`, true, data[currentSection][branch][year][sem][oldSubject]);
+  if (link !== null && link.trim() !== '') {
+    if(newSubject !== oldSubject) delete data[currentSection][branch][year][sem][oldSubject];
+    data[currentSection][branch][year][sem][newSubject] = link.trim();
     saveData();
     buildAdminSection();
   }
 }
 
-function deleteSubject(branch, year, sem, subject) {
-  if (confirm(`Delete subject ${subject}?`)) {
+async function deleteSubject(branch, year, sem, subject) {
+  const confirmed = await showModal('Delete Subject', `Are you sure you want to delete subject ${subject}?`, false);
+  if (confirmed) {
     delete data[currentSection][branch][year][sem][subject];
     saveData();
     buildAdminSection();
@@ -238,67 +311,45 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
-// Import JSON file from the file input. If 'Merge' is checked, merge into existing data,
-// otherwise replace the whole dataset.
-function importData() {
+async function importData() {
   const fileInput = document.getElementById('importFile');
   if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-    alert('Choose a JSON file first');
+    await showModal('Warning', 'Please choose a JSON file first.', false);
     return;
   }
   const file = fileInput.files[0];
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       const parsed = JSON.parse(e.target.result);
       const merge = document.getElementById('mergeImport') && document.getElementById('mergeImport').checked;
       if (merge) {
-        // merge parsed into current data (parsed overrides existing keys)
         data = deepMerge(data, parsed);
       } else {
-        // replace entire dataset
         data = parsed;
       }
       saveData();
       buildAdminSection();
-      alert('Import successful');
-      // clear file input
+      await showModal('Success', 'Import successful.', false);
       fileInput.value = '';
+      const fname = document.getElementById('file-name');
+      if(fname) fname.textContent = 'Choose JSON';
     } catch (err) {
       console.error('Failed to import JSON', err);
-      alert('Invalid JSON file');
+      await showModal('Error', 'Invalid JSON file.', false);
     }
   };
-  reader.onerror = function() {
-    alert('Failed to read file');
+  reader.onerror = async function() {
+    await showModal('Error', 'Failed to read file.', false);
   };
   reader.readAsText(file);
 }
 
-// Save data to localStorage (used by admin functions)
-function saveData() {
+async function saveData() {
   try {
     localStorage.setItem('pyqData', JSON.stringify(data));
   } catch (e) {
     console.error('Failed to save data to localStorage', e);
-    alert('Failed to save data. Check browser storage settings.');
+    await showModal('Error', 'Failed to save data. Check browser storage settings.', false);
   }
-}
-
-// Load latest pyq-data.json into admin (useful after replacing file on disk)
-function loadFromFile() {
-  const url = 'pyq-data.json?_=' + Date.now();
-  fetch(url).then(r => {
-    if (!r.ok) throw new Error('no-file');
-    return r.json();
-  }).then(json => {
-    data = json;
-    try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
-    // If admin already has a section selected, rebuild UI
-    if (typeof currentSection !== 'undefined') buildAdminSection();
-    alert('Loaded latest pyq-data.json');
-  }).catch(err => {
-    console.error('Failed to load pyq-data.json', err);
-    alert('Failed to load pyq-data.json — check the file or server.');
-  });
 }
