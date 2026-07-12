@@ -1,41 +1,51 @@
-<!-- index.html -->
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>JUT & Chaibasa PYQ Portal</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <header class="site-header">
-    <div class="title">College PYQ  </div>
-      <div class="socials" role="navigation" aria-label="Social and admin links">
-      <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw==" target="_blank" aria-label="Instagram">
-        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <!-- Rounded square background (Instagram-like color) -->
-          <rect x="1" y="1" width="22" height="22" rx="5" ry="5" style="fill:#E1306C;stroke:none"></rect>
-          <!-- camera circle + inner lens -->
-          <circle cx="12" cy="12" r="3.6" style="fill:#ffffff"></circle>
-          <circle cx="12" cy="12" r="1.4" style="fill:#E1306C"></circle>
-          <!-- small flash dot -->
-          <circle cx="17.5" cy="6.5" r="1" style="fill:#ffffff"></circle>
+    <div class="title">College PYQ</div>
+    <div class="socials" role="navigation" aria-label="Social and admin links">
+      <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw==" target="_blank"
+        aria-label="Instagram">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
         </svg>
       </a>
-      <a class="social youtube" href="https://youtube.com/@arvindmode" target="_blank" aria-label="YouTube">
-        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <rect x="1" y="4" width="22" height="16" rx="4" ry="4" style="fill:#FF0000 !important; stroke:none !important;"></rect>
-          <polygon points="10,8 17,12 10,16" style="fill:#FFFFFF !important; stroke:none !important;"></polygon>
+      <a class="social linkedin" href="https://in.linkedin.com/in/arvind-kumar-cse" target="_blank"
+        aria-label="LinkedIn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+          <rect width="4" height="12" x="2" y="9" />
+          <circle cx="4" cy="4" r="2" />
         </svg>
       </a>
-      <a class="social linkedin" href="https://www.linkedin.com/in/arvind-kumar-6baa60381?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app " target="_blank" aria-label="LinkedIn">
-        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <path fill="currentColor" d="M4.98 3.5a2 2 0 1 1-.001-4 2 2 0 0 1 .001 4zM3 7h4v11H3zM9 7h4v1.6h.1c.6-1 1.9-1.6 3.4-1.6 3.6 0 4.5 2.4 4.5 5.6V18h-4v-4.4c0-1.1 0-2.5-1.6-2.5-1.6 0-1.8 1.2-1.8 2.4V18H9z"/>
-        </svg>
-      </a>
-      <!-- Admin moved to drawer menu -->
     </div>
-    <button class="menu-btn" aria-label="Open menu" aria-expanded="false" onclick="toggleDrawer()">☰</button>
+    <button class="menu-btn" aria-label="Open menu" aria-expanded="false" onclick="toggleDrawer()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
   </header>
 
   <main class="main-grid">
@@ -48,8 +58,20 @@
 
     <!-- Middle image / banner -->
     <aside class="middle">
-      <img id="studyImage" src="https://i.ytimg.com/vi/CoY7KWzkyJA/maxresdefault.jpg" alt="Study Types">
-      <p class="middle-note">Click branch → year → semester → subject to open Google Drive</p>
+      <div class="banner-card">
+        <img id="studyImage" src="https://i.ytimg.com/vi/CoY7KWzkyJA/maxresdefault.jpg" alt="Study Types">
+        <div class="banner-overlay"></div>
+      </div>
+      <div class="middle-note">
+        <div class="note-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
+          </svg>
+        </div>
+        <span>Click branch → year → semester → subject to open Google Drive</span>
+      </div>
     </aside>
 
     <!-- Right column: Chaibasa Engineering College -->
@@ -57,22 +79,92 @@
       <h2>Chaibasa Engineering College PYQ</h2>
 
       <div class="branches" id="chaiBranches"></div>
-
-      
-
-      
-      <section>
+    </section>
   </main>
 
   <footer class="site-footer">
-    © 2025 Arvind Mode | All Rights Reserved
+    <p>© 2025 Arvind Mode | All Rights Reserved</p>
   </footer>
+
+  <!-- Right-side drawer and overlay -->
+  <div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()" aria-hidden="true"></div>
+  <nav id="sideDrawer" class="side-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-title">Menu</div>
+      <button class="drawer-close" aria-label="Close menu" onclick="closeDrawer()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="drawer-list">
+      <a class="drawer-item" href="admin.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg> Admin
+      </a>
+      <button class="drawer-item" onclick="refreshData(); closeDrawer();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.42l5.67-5.67" />
+        </svg> Reload Data
+      </button>
+      <label class="drawer-item theme-toggle" for="themeToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+        <span class="label">Dark mode</span>
+        <div class="toggle-switch">
+          <input id="themeToggle" type="checkbox" onchange="toggleTheme(this.checked)">
+          <div class="slider"></div>
+        </div>
+      </label>
+      <button class="drawer-item" onclick="alert('Notes — feature placeholder')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg> Notes
+      </button>
+      <button class="drawer-item" onclick="alert('Contact — feature placeholder')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg> Contact
+      </button>
+    </div>
+
+    <div class="drawer-footer" aria-hidden="false">
+      <div class="drawer-footer-inner">
+        <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw=="
+          target="_blank" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+            <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+          </svg>
+        </a>
+        <a class="social linkedin" href="https://in.linkedin.com/in/arvind-kumar-cse" target="_blank"
+          aria-label="LinkedIn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+            <rect width="4" height="12" x="2" y="9" />
+            <circle cx="4" cy="4" r="2" />
+          </svg>
+        </a>
+      </div>
+    </div>
+  </nav>
 
   <!-- Firebase FCM (web) - add your Firebase config below -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js"></script>
   <script>
-    // Firebase project credentials (provided)
     const firebaseConfig = {
       apiKey: "AIzaSyALNiis2UEzQAP_vRmlzI_9ShivO2wEHFA",
       authDomain: "collegepyq-120f7.firebaseapp.com",
@@ -82,45 +174,10 @@
       appId: "1:726374864349:web:3255f152e945e715191234",
       measurementId: "G-4GQ7YKGDBV"
     };
-    // initialize here so `firebase` is available to `script.js`
-    try { firebase.initializeApp(firebaseConfig); } catch(e) { console.warn('Firebase init skipped or duplicate', e); }
+    try { firebase.initializeApp(firebaseConfig); } catch (e) { console.warn('Firebase init skipped or duplicate', e); }
   </script>
 
   <script src="script.js"></script>
 </body>
-</html>
 
-<!-- Right-side drawer and overlay -->
-<div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()" aria-hidden="true"></div>
-<nav id="sideDrawer" class="side-drawer" aria-hidden="true">
-  <div class="drawer-header">
-    <div class="drawer-title">Menu</div>
-    <button class="drawer-close" aria-label="Close menu" onclick="closeDrawer()">✕</button>
-  </div>
-  <div class="drawer-list">
-    <a class="drawer-item" href="admin.html">Admin</a>
-    <button class="drawer-item" onclick="refreshData(); closeDrawer();">Reload Data</button>
-    <label class="drawer-item theme-toggle" for="themeToggle">
-      <input id="themeToggle" type="checkbox" onchange="toggleTheme(this.checked)">
-      <span class="label">Dark mode</span>
-    </label>
-    <button class="drawer-item" onclick="alert('Notes — feature placeholder')">Notes</button>
-    <button class="drawer-item" onclick="alert('Contact — feature placeholder')">Contact</button>
-  </div>
-  
-  <div class="drawer-footer" aria-hidden="false">
-    <div class="drawer-footer-inner">
-      <a class="social instagram" href="https://www.instagram.com/arvindmode?igsh=MThkZm1sNjdzaWphMw==" target="_blank" aria-label="Instagram">
-        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="22" height="22" rx="5" ry="5" style="fill:#E1306C;stroke:none"></rect><circle cx="12" cy="12" r="3.6" style="fill:#ffffff"></circle><circle cx="12" cy="12" r="1.4" style="fill:#E1306C"></circle><circle cx="17.5" cy="6.5" r="1" style="fill:#ffffff"></circle></svg>
-      </a>
-      <a class="social youtube" href="https://youtube.com/@arvindmode" target="_blank" aria-label="YouTube">
-        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="22" height="16" rx="4" ry="4" style="fill:#FF0000;stroke:none"></rect><polygon points="10,8 17,12 10,16" style="fill:#FFFFFF;stroke:none"></polygon></svg>
-      </a>
-      <a class="social linkedin" href="https://www.linkedin.com/in/arvind-kumar-6baa60381" target="_blank" aria-label="LinkedIn">
-        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M4.98 3.5a2 2 0 1 1-.001-4 2 2 0 0 1 .001 4zM3 7h4v11H3zM9 7h4v1.6h.1c.6-1 1.9-1.6 3.4-1.6 3.6 0 4.5 2.4 4.5 5.6V18h-4v-4.4c0-1.1 0-2.5-1.6-2.5-1.6 0-1.8 1.2-1.8 2.4V18H9z"/></svg>
-      </a>
-    </div>
-  </div>
-</nav>
-</body>
 </html>
