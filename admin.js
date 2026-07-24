@@ -1,6 +1,20 @@
 // admin.js
 
-const PASSWORD = 'admin123';
+// Firebase Auth Handlers
+let currentUser = null;
+
+// Listen for auth state changes
+firebase.auth().onAuthStateChanged((user) => {
+  currentUser = user;
+  if (user) {
+    document.getElementById('password-section').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+    loadSection();
+  } else {
+    document.getElementById('password-section').style.display = 'block';
+    document.getElementById('admin-content').style.display = 'none';
+  }
+});
 
 const defaultData = {};
 
@@ -9,14 +23,14 @@ let currentSection = '';
 
 // Load admin data preferring the project JSON file (authoritative). If fetch
 // fails, fall back to localStorage (previous admin edits) or the empty default.
-(function initAdminData(){
+(function initAdminData() {
   const url = 'pyq-data.json?_=' + Date.now();
   fetch(url).then(r => {
     if (!r.ok) throw new Error('no-file');
     return r.json();
   }).then(json => {
     data = json;
-    try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
+    try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) { }
   }).catch(() => {
     const stored = localStorage.getItem('pyqData');
     if (stored) {
@@ -56,7 +70,7 @@ function showModal(title, message, withInput = false, defaultValue = '') {
 
     titleEl.textContent = title;
     messageEl.textContent = message;
-    
+
     if (withInput) {
       inputEl.style.display = 'block';
       inputEl.value = defaultValue;
@@ -82,29 +96,46 @@ function showModal(title, message, withInput = false, defaultValue = '') {
     };
 
     overlay.classList.add('show');
-    if(withInput) inputEl.focus();
+    if (withInput) inputEl.focus();
   });
 }
 
-async function checkPassword(e) {
+async function handleAuth(e) {
   if (e && e.preventDefault) e.preventDefault();
+  const emailEl = document.getElementById('email');
   const pwdEl = document.getElementById('password');
+  const email = emailEl ? emailEl.value.trim() : '';
   const pwd = pwdEl ? pwdEl.value : '';
-  if (pwd === PASSWORD) {
-    document.getElementById('password-section').style.display = 'none';
-    document.getElementById('admin-content').style.display = 'block';
+  const help = document.getElementById('login-help');
+
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, pwd);
+    if (emailEl) emailEl.value = '';
     if (pwdEl) pwdEl.value = '';
-    loadSection();
-  } else {
-    const help = document.getElementById('login-help');
     if (help) {
-      help.textContent = 'Wrong password. Try again.';
+      help.textContent = 'Use your admin credentials to manage PYQ data.';
+      help.style.color = 'inherit';
+    }
+  } catch (error) {
+    if (help) {
+      help.textContent = error.message;
       help.style.color = 'crimson';
     } else {
-      await showModal('Error', 'Wrong password', false);
+      await showModal('Error', error.message, false);
     }
   }
 }
+
+
+async function handleLogout() {
+  try {
+    await firebase.auth().signOut();
+  } catch (error) {
+    await showModal('Error', 'Failed to log out.', false);
+  }
+}
+
+
 
 function loadSection() {
   const sel = document.getElementById('section-select');
@@ -119,11 +150,11 @@ const iconToggle = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" 
 
 function buildAdminSection() {
   const container = document.getElementById('section-content');
-  if(!container) return;
+  if (!container) return;
   container.innerHTML = '';
-  
-  if(!data || !data[currentSection]) return;
-  
+
+  if (!data || !data[currentSection]) return;
+
   const sectionData = data[currentSection];
   for (const branchName in sectionData) {
     const branchDiv = document.createElement('div');
@@ -134,7 +165,7 @@ function buildAdminSection() {
       </div>
       <div class="branch-body">
         <div class="body-inner">
-        ${Object.keys(sectionData[branchName]).sort((a,b)=>b-a).map(year => `
+        ${Object.keys(sectionData[branchName]).sort((a, b) => b - a).map(year => `
           <div class="year">
             <div class="year-head" onclick="toggleNode(this)">
               <span class="toggler">${iconToggle}</span> ${year}
@@ -281,10 +312,10 @@ async function addSubject(branch, year, sem) {
 async function editSubject(branch, year, sem, oldSubject) {
   const newSubject = await showModal('Edit Subject', `Enter new subject name:`, true, oldSubject);
   if (!newSubject || newSubject.trim() === '') return;
-  
+
   const link = await showModal('Edit Link', `Enter new link for ${newSubject}:`, true, data[currentSection][branch][year][sem][oldSubject]);
   if (link !== null && link.trim() !== '') {
-    if(newSubject !== oldSubject) delete data[currentSection][branch][year][sem][oldSubject];
+    if (newSubject !== oldSubject) delete data[currentSection][branch][year][sem][oldSubject];
     data[currentSection][branch][year][sem][newSubject] = link.trim();
     saveData();
     buildAdminSection();
@@ -319,7 +350,7 @@ async function importData() {
   }
   const file = fileInput.files[0];
   const reader = new FileReader();
-  reader.onload = async function(e) {
+  reader.onload = async function (e) {
     try {
       const parsed = JSON.parse(e.target.result);
       const merge = document.getElementById('mergeImport') && document.getElementById('mergeImport').checked;
@@ -333,13 +364,13 @@ async function importData() {
       await showModal('Success', 'Import successful.', false);
       fileInput.value = '';
       const fname = document.getElementById('file-name');
-      if(fname) fname.textContent = 'Choose JSON';
+      if (fname) fname.textContent = 'Choose JSON';
     } catch (err) {
       console.error('Failed to import JSON', err);
       await showModal('Error', 'Invalid JSON file.', false);
     }
   };
-  reader.onerror = async function() {
+  reader.onerror = async function () {
     await showModal('Error', 'Failed to read file.', false);
   };
   reader.readAsText(file);
