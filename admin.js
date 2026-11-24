@@ -100,7 +100,12 @@ function setupRealtimeListener() {
 // Save Data (syncs to Firebase Realtime Database & localStorage)
 async function saveData() {
   try {
-    localStorage.setItem('pyqData', JSON.stringify(data));
+    try {
+      localStorage.setItem('pyqData', JSON.stringify(data));
+    } catch (storageErr) {
+      console.warn('localStorage quota notice (skipping local cache):', storageErr);
+    }
+    updateStorageStats();
     if (window.firebase && firebase.database) {
       updateSyncStatus('syncing', 'Saving to Realtime DB...');
       await firebase.database().ref('pyqData').set(data);
@@ -289,9 +294,19 @@ function loadSection() {
 
 // Build Admin Dashboard Tree
 function buildAdminSection() {
+  updateStorageStats();
   const container = document.getElementById('section-content');
   if (!container) return;
   container.innerHTML = '';
+
+  if (currentSection === 'notes') {
+    if (!data) data = {};
+    if (!data.notes) {
+      data.notes = { CSE: {}, ECE: {}, EE: {}, ME: {}, CE: {} };
+    }
+    buildNotesAdminSection(container);
+    return;
+  }
 
   if (!data || !data[currentSection]) {
     container.innerHTML = '<p class="muted" style="text-align:center; padding:32px;">No data found for this section. You can import JSON or add new branches.</p>';
@@ -322,7 +337,7 @@ function buildAdminSection() {
             </div>
             <div class="year-body">
               <div class="body-inner">
-              ${Object.keys(sectionData[branchName][year]).map(sem => {
+              ${sortSemesters(Object.keys(sectionData[branchName][year])).map(sem => {
                 const uniqueId = safeId(`${branchName}-${year}-${sem}`);
                 return `
                 <div class="semester">
@@ -337,7 +352,7 @@ function buildAdminSection() {
                     <div class="body-inner">
                     ${Object.keys(sectionData[branchName][year][sem]).map(subject => {
                       const link = sectionData[branchName][year][sem][subject] || '#';
-                      const isDataUrl = typeof link === 'string' && link.startsWith('data:application/pdf');
+                      const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                       const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
                       const hrefAttr = isDataUrl ? 'javascript:void(0)' : link;
                       const targetAttr = isDataUrl ? '_self' : '_blank';
@@ -429,16 +444,173 @@ function toggleNode(el) {
   el.classList.toggle('open');
 }
 
-// Handle file selection preview label
+const MAX_PDF_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB limit
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// Calculate and display total storage used & item count on Admin Dashboard
+function updateStorageStats() {
+  const sizeEl = document.getElementById('statTotalSize');
+  const itemsEl = document.getElementById('statTotalItems');
+  if (!sizeEl || !itemsEl || !data) return;
+
+  let totalBytes = 0;
+  let totalItems = 0;
+
+  const processUrl = (url) => {
+    totalItems++;
+    if (typeof url !== 'string') return;
+    if (url.startsWith('data:application/pdf')) {
+      const base64Part = url.split(',')[1] || '';
+      totalBytes += Math.round((base64Part.length * 3) / 4);
+    } else if (url.startsWith('rtdb-pdf://')) {
+      const match = url.match(/[?&]size=(\d+)/);
+      if (match && match[1]) {
+        totalBytes += parseInt(match[1], 10);
+      }
+    }
+  };
+
+  // Scan JUT & Chaibasa
+  ['jut', 'chaibasa'].forEach(sec => {
+    const secObj = data[sec] || {};
+    for (const branch in secObj) {
+      for (const year in secObj[branch]) {
+        for (const sem in secObj[branch][year]) {
+          for (const sub in secObj[branch][year][sem]) {
+            processUrl(secObj[branch][year][sem][sub]);
+          }
+        }
+      }
+    }
+  });
+
+  // Scan Notes
+  const notesObj = data.notes || {};
+  for (const branch in notesObj) {
+    for (const sem in notesObj[branch]) {
+      for (const sub in notesObj[branch][sem]) {
+        processUrl(notesObj[branch][sem][sub]);
+      }
+    }
+  }
+
+  sizeEl.textContent = formatFileSize(totalBytes);
+  itemsEl.textContent = totalItems;
+}
+
+// Handle file selection preview label with size
 function handleFileSelect(uniqueId, fileInput) {
   const label = document.getElementById(`fileLabel-${uniqueId}`);
   if (!label) return;
   if (fileInput.files && fileInput.files[0]) {
-    label.textContent = `PDF: ${fileInput.files[0].name}`;
-    label.style.color = 'var(--primary)';
+    const file = fileInput.files[0];
+    const sizeText = formatFileSize(file.size);
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      label.textContent = `Too Large (${sizeText} > 100 MB)`;
+      label.style.color = '#ef4444';
+    } else {
+      label.textContent = `PDF: ${file.name} (${sizeText})`;
+      label.style.color = 'var(--primary)';
+    }
   } else {
-    label.textContent = 'Or Upload PDF File';
+    label.textContent = 'Or Upload PDF File (Max 100 MB)';
     label.style.color = '';
+  }
+}
+
+// Generate lightweight preview images of first 4 pages at upload time for instant opening
+async function generatePreviewPages(file) {
+  if (!window.pdfjsLib) return null;
+  try {
+    const arrayBuf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf) }).promise;
+    const totalPages = pdf.numPages;
+    const previewCount = Math.min(4, totalPages);
+    const pages = [];
+    for (let i = 1; i <= previewCount; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      pages.push(canvas.toDataURL('image/jpeg', 0.78));
+    }
+    return { totalPages, pages };
+  } catch (e) {
+    console.warn('Preview generation skipped:', e);
+    return null;
+  }
+}
+
+// Smart PDF Uploader supporting up to 100 MB via chunked Realtime Database
+async function uploadPdfSmart(file, onProgress, onStatus) {
+  if (file.size > MAX_PDF_SIZE_BYTES) {
+    throw new Error(`File size (${formatFileSize(file.size)}) 100 MB limit se badi hai.`);
+  }
+
+  if (onStatus) onStatus('Reading PDF...');
+  const dataUrl = await fileToDataUrl(file, (pct) => {
+    if (onProgress) onProgress(Math.round(pct * 0.2));
+  });
+
+  // For small PDFs (< 800 KB), store directly as Data URL
+  if (file.size <= 800 * 1024 || !window.firebase || !firebase.database) {
+    if (onProgress) onProgress(100);
+    return dataUrl;
+  }
+
+  // For larger PDFs (up to 100 MB), upload in 4 MB chunks to Realtime DB 'pdfChunks'
+  const fileId = 'pdf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const chunkSize = 4 * 1024 * 1024; // 4 MB base64 chunks
+  const totalChunks = Math.ceil(dataUrl.length / chunkSize);
+
+  const chunksRef = firebase.database().ref(`pdfChunks/${fileId}`);
+  if (onStatus) onStatus('Creating fast preview...');
+  const preview = await generatePreviewPages(file);
+
+  await chunksRef.child('meta').set({
+    name: file.name,
+    size: file.size,
+    totalChunks: totalChunks,
+    totalPages: preview ? preview.totalPages : 0,
+    createdAt: Date.now()
+  });
+
+  if (preview && preview.pages && preview.pages.length > 0) {
+    await chunksRef.child('preview').set(preview);
+  }
+
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = dataUrl.slice(i * chunkSize, (i + 1) * chunkSize);
+    if (onStatus) onStatus(`Uploading (${i + 1}/${totalChunks})...`);
+    await chunksRef.child(`chunks/${i}`).set(chunk);
+    if (onProgress) {
+      const uploadPct = 20 + Math.round(((i + 1) / totalChunks) * 80);
+      onProgress(uploadPct);
+    }
+  }
+
+  return `rtdb-pdf://${fileId}?size=${file.size}`;
+}
+
+// Cleanup chunked PDF from Realtime DB when deleted
+async function cleanupRtdbPdfIfNeeded(url) {
+  if (typeof url === 'string' && url.startsWith('rtdb-pdf://') && window.firebase && firebase.database) {
+    try {
+      const fileId = url.replace('rtdb-pdf://', '').split('?')[0];
+      if (fileId) {
+        await firebase.database().ref(`pdfChunks/${fileId}`).remove();
+      }
+    } catch (e) {
+      console.warn('Chunk cleanup notice:', e);
+    }
   }
 }
 
@@ -494,6 +666,7 @@ function isPdfViewerOpen() {
 }
 
 function closePdfViewer() {
+  pdfRenderSession++;
   const modal = document.getElementById('pdfViewerModal');
   if (modal) {
     modal.classList.remove('show');
@@ -538,42 +711,126 @@ async function openPdfViewer(title, link) {
   currentPdfScale = 1.0;
   updateZoomLabel();
 
-  // 1. Direct PDF (Base64 data URL, direct .pdf URL, or Firebase Storage URL)
-  const isDirectPdf = link.startsWith('data:application/pdf') || link.includes('.pdf') || link.includes('firebasestorage.googleapis.com');
+  // 1. Direct PDF (Base64 data URL, rtdb-pdf chunked URL, direct .pdf URL, or Firebase Storage URL)
+  const isDirectPdf = link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://') || link.includes('.pdf') || link.includes('firebasestorage.googleapis.com');
 
   if (isDirectPdf && window.pdfjsLib) {
     if (navControls) navControls.style.display = 'flex';
     if (zoomControls) zoomControls.style.display = 'flex';
 
     try {
-      let docInit = null;
-      if (link.startsWith('data:application/pdf')) {
-        const base64 = link.split(',')[1];
-        const binaryStr = atob(base64);
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
+      let resolvedLink = link;
+      const spinnerText = spinner ? spinner.querySelector('p') : null;
+      if (spinnerText) spinnerText.textContent = 'Loading document securely...';
+      const sessionId = ++pdfRenderSession;
+      let previewShownCount = 0;
+
+      if (link.startsWith('rtdb-pdf://')) {
+        const fileId = link.replace('rtdb-pdf://', '').split('?')[0];
+
+        try {
+          const previewSnap = await firebase.database().ref(`pdfChunks/${fileId}/preview`).once('value');
+          const preview = previewSnap.val();
+          if (preview && preview.pages && preview.pages.length > 0 && sessionId === pdfRenderSession) {
+            previewShownCount = preview.pages.length;
+            totalPdfPages = preview.totalPages || previewShownCount;
+            const totalEl = document.getElementById('pdfTotalPages');
+            const curEl = document.getElementById('pdfCurrentPage');
+            if (totalEl) totalEl.textContent = totalPdfPages;
+            if (curEl) curEl.textContent = 1;
+
+            if (spinner) spinner.style.display = 'none';
+            if (canvasContainer) {
+              canvasContainer.style.display = 'flex';
+              canvasContainer.innerHTML = '';
+              preview.pages.forEach((imgUrl, idx) => {
+                const pageCard = document.createElement('div');
+                pageCard.className = 'pdf-page-card';
+                pageCard.id = `pdf-page-${idx + 1}`;
+                pageCard.dataset.pageNum = String(idx + 1);
+                pageCard.dataset.rendered = 'preview';
+                pageCard.innerHTML = `<img src="${imgUrl}" style="display:block;width:100%;max-width:720px;height:auto;pointer-events:none;" alt="Page ${idx + 1}"><div class="pdf-shield-overlay" title="Protected Document"></div>`;
+                canvasContainer.appendChild(pageCard);
+              });
+              for (let p = previewShownCount + 1; p <= totalPdfPages; p++) {
+                const pageCard = document.createElement('div');
+                pageCard.className = 'pdf-page-card is-placeholder';
+                pageCard.id = `pdf-page-${p}`;
+                pageCard.dataset.pageNum = String(p);
+                pageCard.innerHTML = `<div class="pdf-page-loading">Downloading remaining pages (${p} / ${totalPdfPages})...</div>`;
+                canvasContainer.appendChild(pageCard);
+              }
+            }
+          }
+        } catch (prevErr) {
+          console.warn('Preview fetch skipped:', prevErr);
         }
-        docInit = { data: bytes };
+
+        const metaSnap = await firebase.database().ref(`pdfChunks/${fileId}/meta`).once('value');
+        if (sessionId !== pdfRenderSession) return;
+        const meta = metaSnap.val();
+        if (meta && meta.totalChunks) {
+          let loadedChunks = 0;
+          const chunkPromises = [];
+          for (let i = 0; i < meta.totalChunks; i++) {
+            chunkPromises.push(
+              firebase.database().ref(`pdfChunks/${fileId}/chunks/${i}`).once('value').then(s => {
+                loadedChunks++;
+                if (spinnerText && previewShownCount === 0) {
+                  spinnerText.textContent = `Loading PDF (${loadedChunks}/${meta.totalChunks})...`;
+                }
+                return s.val() || '';
+              })
+            );
+          }
+          const parts = await Promise.all(chunkPromises);
+          resolvedLink = parts.join('');
+        } else {
+          const snap = await firebase.database().ref(`pdfChunks/${fileId}/chunks`).once('value');
+          const chunksVal = snap.val();
+          if (!chunksVal) throw new Error('PDF data not found in database.');
+          const ordered = Array.isArray(chunksVal)
+            ? chunksVal
+            : Object.keys(chunksVal).sort((a, b) => Number(a) - Number(b)).map(k => chunksVal[k]);
+          resolvedLink = ordered.join('');
+        }
+      }
+
+      if (sessionId !== pdfRenderSession) return;
+      if (spinnerText && previewShownCount === 0) spinnerText.textContent = 'Opening pages...';
+
+      let docInit = null;
+      if (resolvedLink.startsWith('data:application/pdf')) {
+        const res = await fetch(resolvedLink);
+        const buf = await res.arrayBuffer();
+        docInit = { data: new Uint8Array(buf) };
       } else {
-        docInit = { url: link };
+        docInit = { url: resolvedLink };
       }
 
       currentPdfDoc = await pdfjsLib.getDocument(docInit).promise;
+      if (sessionId !== pdfRenderSession) return;
       totalPdfPages = currentPdfDoc.numPages;
       const totalEl = document.getElementById('pdfTotalPages');
       const curEl = document.getElementById('pdfCurrentPage');
       if (totalEl) totalEl.textContent = totalPdfPages;
-      if (curEl) curEl.textContent = 1;
+      if (previewShownCount === 0 && curEl) curEl.textContent = 1;
 
       if (spinner) spinner.style.display = 'none';
       if (canvasContainer) canvasContainer.style.display = 'flex';
 
-      await renderAllPdfPages();
+      await renderAllPdfPages(previewShownCount);
     } catch (err) {
-      console.warn('PDF.js render failed, switching to in-website frame:', err);
-      renderEmbeddedDriveOrWeb(link);
+      console.warn('PDF.js render failed:', err);
+      if (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://')) {
+        if (spinner) spinner.style.display = 'none';
+        if (canvasContainer) {
+          canvasContainer.style.display = 'flex';
+          canvasContainer.innerHTML = `<div class="pdf-page-card is-placeholder"><div class="pdf-page-loading" style="color:#ef4444;">Failed to load PDF: ${err.message}</div></div>`;
+        }
+      } else {
+        renderEmbeddedDriveOrWeb(link);
+      }
     }
   } else {
     // 2. Google Drive Link or Web Link -> In-Website Embedded Protected Frame
@@ -608,19 +865,28 @@ function renderEmbeddedDriveOrWeb(link) {
   }
 }
 
-// Render all pages with crisp resolution and transparent shield overlay
-async function renderAllPdfPages() {
-  const container = document.getElementById('pdfCanvasContainer');
-  if (!container || !currentPdfDoc) return;
-  container.innerHTML = '';
+// Progressive rendering session counter (cancels stale background renders on zoom/close)
+let pdfRenderSession = 0;
 
-  for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
-    const page = await currentPdfDoc.getPage(pageNum);
+// Sort semesters in natural serial order (Semester 1, Semester 2, ..., Semester 10)
+function sortSemesters(keys) {
+  return [...keys].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+// Render a single PDF page into its placeholder card
+async function renderSinglePdfPage(pdfDoc, pageNum, pageCard, sessionId) {
+  if (!pdfDoc || !pageCard || sessionId !== pdfRenderSession) return;
+  if (pageCard.dataset.rendered === 'true' || pageCard.dataset.rendering === 'true') return;
+  pageCard.dataset.rendering = 'true';
+
+  try {
+    const page = await pdfDoc.getPage(pageNum);
+    if (sessionId !== pdfRenderSession) return;
+
     const viewport = page.getViewport({ scale: currentPdfScale * 1.5 });
-
-    const pageCard = document.createElement('div');
-    pageCard.className = 'pdf-page-card';
-    pageCard.id = `pdf-page-${pageNum}`;
+    pageCard.innerHTML = '';
+    pageCard.classList.remove('is-placeholder');
+    pageCard.style.minHeight = '';
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -636,10 +902,73 @@ async function renderAllPdfPages() {
 
     pageCard.appendChild(canvas);
     pageCard.appendChild(shield);
-    container.appendChild(pageCard);
 
     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    pageCard.dataset.rendered = 'true';
+  } catch (err) {
+    console.warn(`Failed rendering page ${pageNum}:`, err);
+  } finally {
+    delete pageCard.dataset.rendering;
   }
+}
+
+// Progressive Render: opens first 4 pages immediately, loads remaining pages in background
+async function renderAllPdfPages(existingPreviewCount = 0) {
+  const container = document.getElementById('pdfCanvasContainer');
+  if (!container || !currentPdfDoc) return;
+
+  const sessionId = ++pdfRenderSession;
+  const total = currentPdfDoc.numPages;
+  const viewerBody = document.getElementById('pdfViewerBody');
+
+  const observer = ('IntersectionObserver' in window) ? new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && sessionId === pdfRenderSession) {
+        const pNum = parseInt(entry.target.dataset.pageNum, 10);
+        if (pNum) renderSinglePdfPage(currentPdfDoc, pNum, entry.target, sessionId);
+      }
+    });
+  }, { root: viewerBody, rootMargin: '400px 0px' }) : null;
+
+  let cards = [];
+  if (existingPreviewCount > 0 && container.children.length === total) {
+    cards = Array.from(container.children);
+    cards.forEach(c => { if (observer) observer.observe(c); });
+  } else {
+    container.innerHTML = '';
+    for (let pageNum = 1; pageNum <= total; pageNum++) {
+      const pageCard = document.createElement('div');
+      pageCard.className = 'pdf-page-card is-placeholder';
+      pageCard.id = `pdf-page-${pageNum}`;
+      pageCard.dataset.pageNum = String(pageNum);
+      pageCard.innerHTML = `<div class="pdf-page-loading">Loading Page ${pageNum} of ${total}...</div>`;
+      container.appendChild(pageCard);
+      cards.push(pageCard);
+      if (observer) observer.observe(pageCard);
+    }
+  }
+
+  const initialCount = existingPreviewCount > 0 ? existingPreviewCount : Math.min(4, total);
+  if (existingPreviewCount === 0) {
+    for (let i = 1; i <= initialCount; i++) {
+      if (sessionId !== pdfRenderSession) return;
+      await renderSinglePdfPage(currentPdfDoc, i, cards[i - 1], sessionId);
+    }
+  }
+
+  (async function loadRest() {
+    const startIdx = existingPreviewCount > 0 ? existingPreviewCount + 1 : initialCount + 1;
+    for (let i = startIdx; i <= total; i++) {
+      if (sessionId !== pdfRenderSession) return;
+      await renderSinglePdfPage(currentPdfDoc, i, cards[i - 1], sessionId);
+      await new Promise(r => setTimeout(r, 15));
+    }
+    for (let i = 1; i <= existingPreviewCount; i++) {
+      if (sessionId !== pdfRenderSession) return;
+      await renderSinglePdfPage(currentPdfDoc, i, cards[i - 1], sessionId);
+      await new Promise(r => setTimeout(r, 15));
+    }
+  })();
 }
 
 // Zoom controls
@@ -665,6 +994,9 @@ function changePdfPage(delta) {
     if (curEl) curEl.textContent = currentPdfPage;
     const targetCard = document.getElementById(`pdf-page-${currentPdfPage}`);
     if (targetCard) {
+      if (targetCard.dataset.rendered !== 'true' && currentPdfDoc) {
+        renderSinglePdfPage(currentPdfDoc, currentPdfPage, targetCard, pdfRenderSession);
+      }
       targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -756,27 +1088,29 @@ async function addSubjectWithMedia(branch, year, sem, uniqueId) {
 
   let finalUrl = link;
 
-  // If PDF file selected: Instant direct conversion (no hanging on storage bucket)
+  // If PDF file selected: Upload up to 100 MB
   if (file) {
-    if (file.size > 8 * 1024 * 1024) {
-      await showModal('PDF Size Limit', 'File size 8MB se badi hai. Kripya is file ko Google Drive me upload karein aur uska Link yahan paste karein.', false);
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      await showModal('PDF Size Limit', `File size (${formatFileSize(file.size)}) 100 MB se badi hai. Maximum 100 MB tak ki PDF upload kar sakte hain.`, false);
       return;
     }
 
     addBtn.disabled = true;
-    addBtn.textContent = 'Saving PDF...';
+    addBtn.textContent = 'Uploading...';
     if (progressWrap) progressWrap.style.display = 'block';
 
     try {
-      finalUrl = await fileToDataUrl(file, (pct) => {
-        if (progressBar) progressBar.style.width = pct + '%';
-      });
+      finalUrl = await uploadPdfSmart(
+        file,
+        (pct) => { if (progressBar) progressBar.style.width = pct + '%'; },
+        (statusText) => { addBtn.textContent = statusText; }
+      );
       if (progressBar) progressBar.style.width = '100%';
     } catch (readErr) {
       addBtn.disabled = false;
       addBtn.innerHTML = `${iconAdd} Add Subject`;
       if (progressWrap) progressWrap.style.display = 'none';
-      await showModal('File Error', 'Failed to read PDF file: ' + readErr.message, false);
+      await showModal('Upload Error', 'Failed to upload PDF file: ' + readErr.message, false);
       return;
     }
   }
@@ -792,7 +1126,10 @@ let editSubjectState = null;
 
 function openEditSubjectModal(branch, year, sem, subject) {
   editSubjectState = { branch, year, sem, oldSubject: subject };
-  const currentLink = data[currentSection][branch][year][sem][subject] || '';
+  const targetObj = (year === null && currentSection === 'notes')
+    ? data.notes[branch][sem]
+    : data[currentSection][branch][year][sem];
+  const currentLink = (targetObj && targetObj[subject]) ? targetObj[subject] : '';
 
   const nameInput = document.getElementById('editSubjectName');
   const linkInput = document.getElementById('editSubjectLink');
@@ -802,7 +1139,7 @@ function openEditSubjectModal(branch, year, sem, subject) {
   const progressBar = document.getElementById('editUploadProgressBar');
 
   if (nameInput) nameInput.value = subject;
-  if (linkInput) linkInput.value = currentLink.startsWith('data:application/pdf') ? '[Existing PDF File]' : currentLink;
+  if (linkInput) linkInput.value = (currentLink.startsWith('data:application/pdf') || currentLink.startsWith('rtdb-pdf://')) ? '[Existing PDF File]' : currentLink;
   if (fileInput) fileInput.value = '';
   if (fileLabel) {
     fileLabel.textContent = 'Choose PDF (Optional)';
@@ -830,8 +1167,15 @@ function handleModalFileChange(fileInput) {
   const label = document.getElementById('editSubjectFileLabel');
   if (!label) return;
   if (fileInput.files && fileInput.files[0]) {
-    label.textContent = `PDF: ${fileInput.files[0].name}`;
-    label.style.color = 'var(--primary)';
+    const file = fileInput.files[0];
+    const sizeText = formatFileSize(file.size);
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      label.textContent = `Too Large (${sizeText} > 100 MB)`;
+      label.style.color = '#ef4444';
+    } else {
+      label.textContent = `PDF: ${file.name} (${sizeText})`;
+      label.style.color = 'var(--primary)';
+    }
   } else {
     label.textContent = 'Choose PDF (Optional)';
     label.style.color = '';
@@ -849,10 +1193,14 @@ async function handleSubjectModalSave() {
   const progressWrap = document.getElementById('editUploadProgressWrap');
   const progressBar = document.getElementById('editUploadProgressBar');
 
+  const targetObj = (year === null && currentSection === 'notes')
+    ? data.notes[branch][sem]
+    : data[currentSection][branch][year][sem];
+
   const newSubject = nameInput ? nameInput.value.trim() : '';
   let finalLink = linkInput ? linkInput.value.trim() : '';
   if (finalLink === '[Existing PDF File]') {
-    finalLink = data[currentSection][branch][year][sem][oldSubject];
+    finalLink = targetObj[oldSubject];
   }
   const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
@@ -861,27 +1209,31 @@ async function handleSubjectModalSave() {
     return;
   }
 
-  // Upload new PDF if provided
+  // Upload new PDF if provided (up to 100 MB)
   if (file) {
-    if (file.size > 8 * 1024 * 1024) {
-      alert('File size 8MB se badi hai. Kripya Google Drive me upload karein aur link paste karein.');
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      alert(`File size (${formatFileSize(file.size)}) 100 MB se badi hai. Maximum 100 MB allowed hai.`);
       return;
     }
 
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving PDF...';
+    saveBtn.textContent = 'Uploading...';
     if (progressWrap) progressWrap.style.display = 'block';
 
     try {
-      finalLink = await fileToDataUrl(file, (pct) => {
-        if (progressBar) progressBar.style.width = pct + '%';
-      });
+      const oldUrl = targetObj[oldSubject];
+      finalLink = await uploadPdfSmart(
+        file,
+        (pct) => { if (progressBar) progressBar.style.width = pct + '%'; },
+        (statusText) => { saveBtn.textContent = statusText; }
+      );
       if (progressBar) progressBar.style.width = '100%';
+      await cleanupRtdbPdfIfNeeded(oldUrl);
     } catch (readErr) {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Save Changes';
       if (progressWrap) progressWrap.style.display = 'none';
-      alert('Failed to read PDF file: ' + readErr.message);
+      alert('Failed to upload PDF file: ' + readErr.message);
       return;
     }
   }
@@ -893,9 +1245,9 @@ async function handleSubjectModalSave() {
 
   // Update object
   if (newSubject !== oldSubject) {
-    delete data[currentSection][branch][year][sem][oldSubject];
+    delete targetObj[oldSubject];
   }
-  data[currentSection][branch][year][sem][newSubject] = finalLink;
+  targetObj[newSubject] = finalLink;
 
   saveBtn.disabled = false;
   saveBtn.textContent = 'Save Changes';
@@ -908,6 +1260,8 @@ async function handleSubjectModalSave() {
 async function deleteSubject(branch, year, sem, subject) {
   const confirmed = await showModal('Delete Subject', `Are you sure you want to delete subject "${subject}"?`, false);
   if (confirmed) {
+    const oldUrl = data[currentSection][branch][year][sem][subject];
+    await cleanupRtdbPdfIfNeeded(oldUrl);
     delete data[currentSection][branch][year][sem][subject];
     await saveData();
     buildAdminSection();
@@ -1050,3 +1404,215 @@ async function importData() {
   };
   reader.readAsText(file);
 }
+
+// ============================================
+// Notes Management (Branch -> Semester -> Note)
+// ============================================
+
+function buildNotesAdminSection(container) {
+  const notesData = data.notes || {};
+  for (const branchName in notesData) {
+    const branchObj = notesData[branchName] || {};
+    const branchDiv = document.createElement('div');
+    branchDiv.className = 'branch';
+    branchDiv.innerHTML = `
+      <div class="branch-head" onclick="toggleNode(this)">
+        <span class="toggler">${iconToggle}</span> ${branchName}
+        <div class="action-bar" onclick="event.stopPropagation()">
+          <button class="btn-icon" onclick="deleteBranch('${escapeStr(branchName)}')" aria-label="Delete Branch" title="Delete Branch">${iconDelete}</button>
+        </div>
+      </div>
+      <div class="branch-body">
+        <div class="body-inner">
+        ${sortSemesters(Object.keys(branchObj)).map(sem => {
+          const uniqueId = safeId(`notes-${branchName}-${sem}`);
+          const semObj = branchObj[sem] || {};
+          return `
+          <div class="semester">
+            <div class="sem-head" onclick="toggleNode(this)">
+              <span class="toggler">${iconToggle}</span> ${sem}
+              <div class="action-bar" onclick="event.stopPropagation()">
+                <button class="btn-icon edit" onclick="editNoteSemester('${escapeStr(branchName)}', '${escapeStr(sem)}')" aria-label="Edit">${iconEdit}</button>
+                <button class="btn-icon" onclick="deleteNoteSemester('${escapeStr(branchName)}', '${escapeStr(sem)}')" aria-label="Delete">${iconDelete}</button>
+              </div>
+            </div>
+            <div class="sem-body">
+              <div class="body-inner">
+              ${Object.keys(semObj).map(subject => {
+                const link = semObj[subject] || '#';
+                const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
+                const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
+                return `
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                  <a class="subject" href="javascript:void(0)" onclick="handleAdminNoteClick(event, '${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" style="margin:0; flex:1;" title="Click to view securely">
+                    ${subject}
+                    ${isPdf ? '<span class="badge-pdf">PDF</span>' : '<span class="badge-drive">Link</span>'}
+                  </a>
+                  <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>
+                  <button class="btn-icon" onclick="deleteNote('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>
+                </div>
+              `;
+              }).join('')}
+
+              <!-- Add Note Box with Link or PDF -->
+              <div class="admin-subject-box">
+                <div class="box-title">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Add Note (Link or PDF)
+                </div>
+                <div class="grid-inputs">
+                  <input type="text" class="input" id="subName-${uniqueId}" placeholder="Note / Subject Name">
+                  <input type="text" class="input" id="subLink-${uniqueId}" placeholder="Drive or Web Link">
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <label class="file-upload-label" style="flex:1;">
+                    <input type="file" id="subFile-${uniqueId}" accept="application/pdf" style="display:none;" onchange="handleFileSelect('${uniqueId}', this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span id="fileLabel-${uniqueId}">Or Upload PDF File</span>
+                  </label>
+                  <button class="btn primary" id="addBtn-${uniqueId}" onclick="addNoteWithMedia('${escapeStr(branchName)}', '${escapeStr(sem)}', '${uniqueId}')">
+                    ${iconAdd} Add Note
+                  </button>
+                </div>
+                <div id="progressWrap-${uniqueId}" class="upload-progress-wrap">
+                  <div id="progressBar-${uniqueId}" class="upload-progress-bar"></div>
+                </div>
+              </div>
+
+              </div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+        <div class="admin-add-row">
+          <input type="text" class="input" id="noteSemInput-${safeId(branchName)}" placeholder="Enter semester (e.g. Semester 1)">
+          <button class="btn primary" onclick="addNoteSemester('${escapeStr(branchName)}')">${iconAdd} Add Sem</button>
+        </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(branchDiv);
+  }
+
+  // Row to add a new Branch
+  const newBranchRow = document.createElement('div');
+  newBranchRow.className = 'admin-add-row';
+  newBranchRow.style.marginTop = '24px';
+  newBranchRow.style.paddingTop = '16px';
+  newBranchRow.innerHTML = `
+    <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
+    <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
+  `;
+  container.appendChild(newBranchRow);
+}
+
+function handleAdminNoteClick(event, branch, sem, subject) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const link = (data && data.notes && data.notes[branch] && data.notes[branch][sem])
+    ? data.notes[branch][sem][subject]
+    : null;
+  if (!link || link === '#') return;
+  openPdfViewer(subject + ' (Notes)', link);
+}
+
+async function addNoteWithMedia(branch, sem, uniqueId) {
+  const nameInput = document.getElementById(`subName-${uniqueId}`);
+  const linkInput = document.getElementById(`subLink-${uniqueId}`);
+  const fileInput = document.getElementById(`subFile-${uniqueId}`);
+  const addBtn = document.getElementById(`addBtn-${uniqueId}`);
+  const progressWrap = document.getElementById(`progressWrap-${uniqueId}`);
+  const progressBar = document.getElementById(`progressBar-${uniqueId}`);
+
+  const subject = nameInput ? nameInput.value.trim() : '';
+  const link = linkInput ? linkInput.value.trim() : '';
+  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+  if (!subject) {
+    await showModal('Missing Info', 'Please enter a Note / Subject Name.', false);
+    return;
+  }
+  if (!link && !file) {
+    await showModal('Missing Media', 'Please provide either a Drive/Web Link OR choose a PDF file to upload.', false);
+    return;
+  }
+  if (data.notes[branch][sem][subject]) {
+    await showModal('Already Exists', `Note "${subject}" already exists in this semester.`, false);
+    return;
+  }
+
+  let finalUrl = link;
+  if (file) {
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      await showModal('PDF Size Limit', `File size (${formatFileSize(file.size)}) 100 MB se badi hai. Maximum 100 MB tak ki PDF upload kar sakte hain.`, false);
+      return;
+    }
+    addBtn.disabled = true;
+    addBtn.textContent = 'Uploading...';
+    if (progressWrap) progressWrap.style.display = 'block';
+    try {
+      finalUrl = await uploadPdfSmart(
+        file,
+        (pct) => { if (progressBar) progressBar.style.width = pct + '%'; },
+        (statusText) => { addBtn.textContent = statusText; }
+      );
+      if (progressBar) progressBar.style.width = '100%';
+    } catch (readErr) {
+      addBtn.disabled = false;
+      addBtn.innerHTML = `${iconAdd} Add Note`;
+      if (progressWrap) progressWrap.style.display = 'none';
+      await showModal('Upload Error', 'Failed to upload PDF file: ' + readErr.message, false);
+      return;
+    }
+  }
+
+  data.notes[branch][sem][subject] = finalUrl;
+  await saveData();
+  buildAdminSection();
+}
+
+async function deleteNote(branch, sem, subject) {
+  const confirmed = await showModal('Delete Note', `Are you sure you want to delete note "${subject}"?`, false);
+  if (confirmed) {
+    const oldUrl = data.notes[branch][sem][subject];
+    await cleanupRtdbPdfIfNeeded(oldUrl);
+    delete data.notes[branch][sem][subject];
+    await saveData();
+    buildAdminSection();
+  }
+}
+
+async function addNoteSemester(branch) {
+  const input = document.getElementById('noteSemInput-' + safeId(branch));
+  const sem = input ? input.value.trim() : '';
+  if (sem && !data.notes[branch][sem]) {
+    data.notes[branch][sem] = {};
+    input.value = '';
+    await saveData();
+    buildAdminSection();
+  } else if (sem) {
+    await showModal('Error', 'Semester already exists.', false);
+  }
+}
+
+async function editNoteSemester(branch, oldSem) {
+  const newSem = await showModal('Edit Semester', `Enter new semester:`, true, oldSem);
+  if (newSem && newSem.trim() !== '' && newSem !== oldSem) {
+    data.notes[branch][newSem.trim()] = data.notes[branch][oldSem];
+    delete data.notes[branch][oldSem];
+    await saveData();
+    buildAdminSection();
+  }
+}
+
+async function deleteNoteSemester(branch, sem) {
+  const confirmed = await showModal('Delete Semester', `Are you sure you want to delete semester ${sem} and all its notes?`, false);
+  if (confirmed) {
+    delete data.notes[branch][sem];
+    await saveData();
+    buildAdminSection();
+  }
+}
+
