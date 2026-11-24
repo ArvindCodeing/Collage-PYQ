@@ -83,8 +83,24 @@
         <div class="rules-notice-box" id="firebaseNoticeBox">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           <div style="flex:1;">
-            <strong>Realtime Database & PDF Upload Active:</strong> 
-            Har subject me aap Drive Link paste kar sakte hain ya PDF file choose kar sakte hain. PDF automatic save ho jayegi!
+            <strong>Realtime Database &amp; PDF Upload Active (Max 100 MB):</strong> 
+            Har subject ya note me aap Drive Link paste kar sakte hain ya 100 MB tak ki PDF file upload kar sakte hain.
+          </div>
+        </div>
+
+        <!-- Storage & File Size Info Bar -->
+        <div class="storage-stats-grid" id="storageStatsBar">
+          <div class="stat-card">
+            <span class="stat-label">Total Storage Used</span>
+            <span class="stat-value" id="statTotalSize">0.00 MB</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Max Upload Limit (Per File)</span>
+            <span class="stat-value" style="color: var(--primary);">100 MB</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Total PYQs &amp; Notes</span>
+            <span class="stat-value" id="statTotalItems">0</span>
           </div>
         </div>
 
@@ -107,9 +123,10 @@
 
         <div class="admin-controls">
           <div class="row" style="display:flex; gap:12px; margin-bottom:16px;">
-            <select id="section-select" class="input" style="flex:1;">
+            <select id="section-select" class="input" style="flex:1;" onchange="loadSection()">
               <option value="jut">JUT PYQ</option>
               <option value="chaibasa">Chaibasa Engineering College PYQ</option>
+              <option value="notes">Notes (Branch &amp; Semester)</option>
             </select>
             <button class="btn primary" onclick="loadSection()">Load Section</button>
           </div>

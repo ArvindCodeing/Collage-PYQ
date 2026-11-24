@@ -1339,6 +1339,23 @@ input:checked + .slider:before {
   max-width: 100%;
 }
 
+.pdf-page-card.is-placeholder {
+  width: 680px;
+  max-width: 100%;
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.pdf-page-loading {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  padding: 24px;
+}
+
 .pdf-page-card canvas {
   display: block;
   max-width: 100%;
@@ -1429,5 +1446,55 @@ input:checked + .slider:before {
     padding: 100px 20px;
   }
 }
+
+/* Full-width Notes Panel */
+.notes-panel {
+  grid-column: 1 / -1;
+}
+.notes-panel .branches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Admin Storage Stats Bar */
+.storage-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 640px) {
+  .storage-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-card {
+  background: var(--node-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+
 
 

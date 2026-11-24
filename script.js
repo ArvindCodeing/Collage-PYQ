@@ -254,6 +254,15 @@ function initData() {
 function renderAllSections() {
   if (data && data.jut) buildSection('jutBranches', data.jut);
   if (data && data.chaibasa) buildSection('chaiBranches', data.chaibasa);
+  buildNotesSection('notesBranches', (data && data.notes) ? data.notes : {});
+}
+
+// Smooth scroll to Notes section from menu drawer
+function scrollToNotes() {
+  const el = document.getElementById('notes-panel');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 // Function to attach Realtime Database listener for live updates
@@ -329,6 +338,7 @@ function isPdfViewerOpen() {
 }
 
 function closePdfViewer() {
+  pdfRenderSession++;
   const modal = document.getElementById('pdfViewerModal');
   if (modal) {
     modal.classList.remove('show');
@@ -373,43 +383,129 @@ async function openPdfViewer(title, link) {
   currentPdfScale = 1.0;
   updateZoomLabel();
 
-  // 1. Direct PDF (Base64 data URL, direct .pdf URL, or Firebase Storage URL)
-  const isDirectPdf = link.startsWith('data:application/pdf') || link.includes('.pdf') || link.includes('firebasestorage.googleapis.com');
+  // 1. Direct PDF (Base64 data URL, rtdb-pdf chunked URL, direct .pdf URL, or Firebase Storage URL)
+  const isDirectPdf = link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://') || link.includes('.pdf') || link.includes('firebasestorage.googleapis.com');
 
   if (isDirectPdf && window.pdfjsLib) {
     if (navControls) navControls.style.display = 'flex';
     if (zoomControls) zoomControls.style.display = 'flex';
 
     try {
-      let docInit = null;
-      if (link.startsWith('data:application/pdf')) {
-        const base64 = link.split(',')[1];
-        const binaryStr = atob(base64);
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
+      let resolvedLink = link;
+      const spinnerText = spinner ? spinner.querySelector('p') : null;
+      if (spinnerText) spinnerText.textContent = 'Loading document securely...';
+      const sessionId = ++pdfRenderSession;
+      let previewShownCount = 0;
+
+      if (link.startsWith('rtdb-pdf://')) {
+        const fileId = link.replace('rtdb-pdf://', '').split('?')[0];
+
+        // Step A: Instantly load first 4 preview pages if available (< 0.5 sec)
+        try {
+          const previewSnap = await firebase.database().ref(`pdfChunks/${fileId}/preview`).once('value');
+          const preview = previewSnap.val();
+          if (preview && preview.pages && preview.pages.length > 0 && sessionId === pdfRenderSession) {
+            previewShownCount = preview.pages.length;
+            totalPdfPages = preview.totalPages || previewShownCount;
+            const totalEl = document.getElementById('pdfTotalPages');
+            const curEl = document.getElementById('pdfCurrentPage');
+            if (totalEl) totalEl.textContent = totalPdfPages;
+            if (curEl) curEl.textContent = 1;
+
+            if (spinner) spinner.style.display = 'none';
+            if (canvasContainer) {
+              canvasContainer.style.display = 'flex';
+              canvasContainer.innerHTML = '';
+              preview.pages.forEach((imgUrl, idx) => {
+                const pageCard = document.createElement('div');
+                pageCard.className = 'pdf-page-card';
+                pageCard.id = `pdf-page-${idx + 1}`;
+                pageCard.dataset.pageNum = String(idx + 1);
+                pageCard.dataset.rendered = 'preview';
+                pageCard.innerHTML = `<img src="${imgUrl}" style="display:block;width:100%;max-width:720px;height:auto;pointer-events:none;" alt="Page ${idx + 1}"><div class="pdf-shield-overlay" title="Protected Document"></div>`;
+                canvasContainer.appendChild(pageCard);
+              });
+              for (let p = previewShownCount + 1; p <= totalPdfPages; p++) {
+                const pageCard = document.createElement('div');
+                pageCard.className = 'pdf-page-card is-placeholder';
+                pageCard.id = `pdf-page-${p}`;
+                pageCard.dataset.pageNum = String(p);
+                pageCard.innerHTML = `<div class="pdf-page-loading">Downloading remaining pages (${p} / ${totalPdfPages})...</div>`;
+                canvasContainer.appendChild(pageCard);
+              }
+            }
+          }
+        } catch (prevErr) {
+          console.warn('Preview fetch skipped:', prevErr);
         }
-        docInit = { data: bytes };
+
+        // Step B: Download full chunks in parallel in the background
+        const metaSnap = await firebase.database().ref(`pdfChunks/${fileId}/meta`).once('value');
+        if (sessionId !== pdfRenderSession) return;
+        const meta = metaSnap.val();
+        if (meta && meta.totalChunks) {
+          let loadedChunks = 0;
+          const chunkPromises = [];
+          for (let i = 0; i < meta.totalChunks; i++) {
+            chunkPromises.push(
+              firebase.database().ref(`pdfChunks/${fileId}/chunks/${i}`).once('value').then(s => {
+                loadedChunks++;
+                if (spinnerText && previewShownCount === 0) {
+                  spinnerText.textContent = `Loading PDF (${loadedChunks}/${meta.totalChunks})...`;
+                }
+                return s.val() || '';
+              })
+            );
+          }
+          const parts = await Promise.all(chunkPromises);
+          resolvedLink = parts.join('');
+        } else {
+          const snap = await firebase.database().ref(`pdfChunks/${fileId}/chunks`).once('value');
+          const chunksVal = snap.val();
+          if (!chunksVal) throw new Error('PDF data not found in database.');
+          const ordered = Array.isArray(chunksVal)
+            ? chunksVal
+            : Object.keys(chunksVal).sort((a, b) => Number(a) - Number(b)).map(k => chunksVal[k]);
+          resolvedLink = ordered.join('');
+        }
+      }
+
+      if (sessionId !== pdfRenderSession) return;
+      if (spinnerText && previewShownCount === 0) spinnerText.textContent = 'Opening pages...';
+
+      let docInit = null;
+      if (resolvedLink.startsWith('data:application/pdf')) {
+        const res = await fetch(resolvedLink);
+        const buf = await res.arrayBuffer();
+        docInit = { data: new Uint8Array(buf) };
       } else {
-        docInit = { url: link };
+        docInit = { url: resolvedLink };
       }
 
       currentPdfDoc = await pdfjsLib.getDocument(docInit).promise;
+      if (sessionId !== pdfRenderSession) return;
       totalPdfPages = currentPdfDoc.numPages;
       const totalEl = document.getElementById('pdfTotalPages');
       const curEl = document.getElementById('pdfCurrentPage');
       if (totalEl) totalEl.textContent = totalPdfPages;
-      if (curEl) curEl.textContent = 1;
+      if (previewShownCount === 0 && curEl) curEl.textContent = 1;
 
       if (spinner) spinner.style.display = 'none';
       if (canvasContainer) canvasContainer.style.display = 'flex';
 
-      // Render all pages in high-resolution canvas with shield overlays
-      await renderAllPdfPages();
+      // Render pages (if preview already shown for 1..4, keep them visible and render 5..N immediately)
+      await renderAllPdfPages(previewShownCount);
     } catch (err) {
-      console.warn('PDF.js render failed, switching to in-website frame:', err);
-      renderEmbeddedDriveOrWeb(link);
+      console.warn('PDF.js render failed:', err);
+      if (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://')) {
+        if (spinner) spinner.style.display = 'none';
+        if (canvasContainer) {
+          canvasContainer.style.display = 'flex';
+          canvasContainer.innerHTML = `<div class="pdf-page-card is-placeholder"><div class="pdf-page-loading" style="color:#ef4444;">Failed to load PDF: ${err.message}</div></div>`;
+        }
+      } else {
+        renderEmbeddedDriveOrWeb(link);
+      }
     }
   } else {
     // 2. Google Drive Link or Web Link -> In-Website Embedded Protected Frame
@@ -445,19 +541,28 @@ function renderEmbeddedDriveOrWeb(link) {
   }
 }
 
-// Render all pages with crisp resolution and transparent shield overlay
-async function renderAllPdfPages() {
-  const container = document.getElementById('pdfCanvasContainer');
-  if (!container || !currentPdfDoc) return;
-  container.innerHTML = '';
+// Progressive rendering session counter (cancels stale background renders on zoom/close)
+let pdfRenderSession = 0;
 
-  for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
-    const page = await currentPdfDoc.getPage(pageNum);
+// Sort semesters in natural serial order (Semester 1, Semester 2, ..., Semester 10)
+function sortSemesters(keys) {
+  return [...keys].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+// Render a single PDF page into its placeholder card
+async function renderSinglePdfPage(pdfDoc, pageNum, pageCard, sessionId) {
+  if (!pdfDoc || !pageCard || sessionId !== pdfRenderSession) return;
+  if (pageCard.dataset.rendered === 'true' || pageCard.dataset.rendering === 'true') return;
+  pageCard.dataset.rendering = 'true';
+
+  try {
+    const page = await pdfDoc.getPage(pageNum);
+    if (sessionId !== pdfRenderSession) return;
+
     const viewport = page.getViewport({ scale: currentPdfScale * 1.5 });
-
-    const pageCard = document.createElement('div');
-    pageCard.className = 'pdf-page-card';
-    pageCard.id = `pdf-page-${pageNum}`;
+    pageCard.innerHTML = '';
+    pageCard.classList.remove('is-placeholder');
+    pageCard.style.minHeight = '';
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -473,10 +578,76 @@ async function renderAllPdfPages() {
 
     pageCard.appendChild(canvas);
     pageCard.appendChild(shield);
-    container.appendChild(pageCard);
 
     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    pageCard.dataset.rendered = 'true';
+  } catch (err) {
+    console.warn(`Failed rendering page ${pageNum}:`, err);
+  } finally {
+    delete pageCard.dataset.rendering;
   }
+}
+
+// Progressive Render: opens first 4 pages immediately, loads remaining pages in background
+async function renderAllPdfPages(existingPreviewCount = 0) {
+  const container = document.getElementById('pdfCanvasContainer');
+  if (!container || !currentPdfDoc) return;
+
+  const sessionId = ++pdfRenderSession;
+  const total = currentPdfDoc.numPages;
+  const viewerBody = document.getElementById('pdfViewerBody');
+
+  const observer = ('IntersectionObserver' in window) ? new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && sessionId === pdfRenderSession) {
+        const pNum = parseInt(entry.target.dataset.pageNum, 10);
+        if (pNum) renderSinglePdfPage(currentPdfDoc, pNum, entry.target, sessionId);
+      }
+    });
+  }, { root: viewerBody, rootMargin: '400px 0px' }) : null;
+
+  let cards = [];
+  if (existingPreviewCount > 0 && container.children.length === total) {
+    cards = Array.from(container.children);
+    cards.forEach(c => { if (observer) observer.observe(c); });
+  } else {
+    container.innerHTML = '';
+    for (let pageNum = 1; pageNum <= total; pageNum++) {
+      const pageCard = document.createElement('div');
+      pageCard.className = 'pdf-page-card is-placeholder';
+      pageCard.id = `pdf-page-${pageNum}`;
+      pageCard.dataset.pageNum = String(pageNum);
+      pageCard.innerHTML = `<div class="pdf-page-loading">Loading Page ${pageNum} of ${total}...</div>`;
+      container.appendChild(pageCard);
+      cards.push(pageCard);
+      if (observer) observer.observe(pageCard);
+    }
+  }
+
+  // Render first 4 pages immediately (or upgrade preview pages in background)
+  const initialCount = existingPreviewCount > 0 ? existingPreviewCount : Math.min(4, total);
+  if (existingPreviewCount === 0) {
+    for (let i = 1; i <= initialCount; i++) {
+      if (sessionId !== pdfRenderSession) return;
+      await renderSinglePdfPage(currentPdfDoc, i, cards[i - 1], sessionId);
+    }
+  }
+
+  // Load remaining pages progressively in the background without blocking UI
+  (async function loadRest() {
+    const startIdx = existingPreviewCount > 0 ? existingPreviewCount + 1 : initialCount + 1;
+    for (let i = startIdx; i <= total; i++) {
+      if (sessionId !== pdfRenderSession) return;
+      await renderSinglePdfPage(currentPdfDoc, i, cards[i - 1], sessionId);
+      await new Promise(r => setTimeout(r, 15));
+    }
+    // Upgrade preview images 1..existingPreviewCount to crisp PDF.js canvases silently
+    for (let i = 1; i <= existingPreviewCount; i++) {
+      if (sessionId !== pdfRenderSession) return;
+      await renderSinglePdfPage(currentPdfDoc, i, cards[i - 1], sessionId);
+      await new Promise(r => setTimeout(r, 15));
+    }
+  })();
 }
 
 // Zoom controls
@@ -502,6 +673,9 @@ function changePdfPage(delta) {
     if (curEl) curEl.textContent = currentPdfPage;
     const targetCard = document.getElementById(`pdf-page-${currentPdfPage}`);
     if (targetCard) {
+      if (targetCard.dataset.rendered !== 'true' && currentPdfDoc) {
+        renderSinglePdfPage(currentPdfDoc, currentPdfPage, targetCard, pdfRenderSession);
+      }
       targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -524,6 +698,78 @@ function handleSubjectClick(event, branch, year, sem, subject) {
 
   // Open inside the in-website Secure Viewer!
   openPdfViewer(subject, link);
+}
+
+// Handle clicking a Note item (opens inside in-website Secure Viewer)
+function handleNoteClick(event, branch, sem, subject) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const link = (data && data.notes && data.notes[branch] && data.notes[branch][sem])
+    ? data.notes[branch][sem][subject]
+    : null;
+  if (!link || link === '#') return;
+  openPdfViewer(subject + ' (Notes)', link);
+}
+
+// Build Notes section: Branch -> Semester -> Notes
+function buildNotesSection(containerId, notesSection) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  const branchKeys = notesSection ? Object.keys(notesSection) : [];
+  if (branchKeys.length === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center; padding: 20px 0;">Notes will be uploaded soon by Admin.</p>';
+    return;
+  }
+
+  for (const branchName of branchKeys) {
+    const branchObj = notesSection[branchName] || {};
+    const semKeys = Object.keys(branchObj);
+    const branchDiv = document.createElement('div');
+    branchDiv.className = 'branch';
+    branchDiv.setAttribute('data-name', branchName);
+    branchDiv.innerHTML = `
+      <div class="branch-head" onclick="toggleNode(this)">
+        <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+        ${branchName}
+      </div>
+      <div class="branch-body">
+        <div class="body-inner">
+        ${semKeys.length === 0 ? '<p class="muted" style="font-size:13px; padding:6px 0;">No semesters added yet.</p>' : sortSemesters(semKeys).map(sem => {
+          const subjectsObj = branchObj[sem] || {};
+          const subjectKeys = Object.keys(subjectsObj);
+          return `
+            <div class="semester" data-name="${sem}">
+              <div class="sem-head" onclick="toggleNode(this)">
+                <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+                ${sem}
+              </div>
+              <div class="sem-body">
+                <div class="body-inner">
+                ${subjectKeys.length === 0 ? '<p class="muted" style="font-size:13px; padding:4px 0;">No notes added yet.</p>' : subjectKeys.map(subject => {
+                  const link = subjectsObj[subject] || '#';
+                  const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
+                  const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
+                  return `
+                    <a class="subject" href="javascript:void(0)" data-name="${subject}" onclick="handleNoteClick(event, '${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')">
+                      ${subject}
+                      ${isPdf ? '<span class="badge-pdf">PDF</span>' : '<span class="badge-drive">Link</span>'}
+                    </a>
+                  `;
+                }).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+        </div>
+      </div>
+    `;
+    container.appendChild(branchDiv);
+  }
 }
 
 // Function to build HTML for a section
@@ -550,7 +796,7 @@ function buildSection(containerId, section) {
             </div>
             <div class="year-body">
               <div class="body-inner">
-              ${Object.keys(section[branchName][year]).map(sem => `
+              ${sortSemesters(Object.keys(section[branchName][year])).map(sem => `
                 <div class="semester" data-name="${sem}">
                   <div class="sem-head" onclick="toggleNode(this)">
                     <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
@@ -560,7 +806,7 @@ function buildSection(containerId, section) {
                     <div class="body-inner">
                     ${Object.keys(section[branchName][year][sem]).map(subject => {
                       const link = section[branchName][year][sem][subject] || '#';
-                      const isDataUrl = typeof link === 'string' && link.startsWith('data:application/pdf');
+                      const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                       const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
                       return `
                         <a class="subject" href="javascript:void(0)" data-name="${subject}" onclick="handleSubjectClick(event, '${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')">
