@@ -161,13 +161,101 @@
     </div>
   </nav>
 
-  <!-- Firebase FCM (web) - add your Firebase config below -->
+  <!-- Secure In-Website PDF Viewer Modal -->
+  <div id="pdfViewerModal" class="pdf-modal" aria-hidden="true">
+    <div class="pdf-modal-backdrop" onclick="closePdfViewer()"></div>
+    <div class="pdf-modal-container">
+      <!-- Header / Toolbar -->
+      <div class="pdf-modal-header">
+        <div class="pdf-modal-title-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="pdf-icon">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <div class="pdf-modal-title" id="pdfViewerTitle">Document Viewer</div>
+          <span class="pdf-protected-badge">🔒 View Only</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="pdf-modal-toolbar">
+          <div class="pdf-nav-controls" id="pdfNavControls">
+            <button class="pdf-btn" id="pdfPrevPage" onclick="changePdfPage(-1)" title="Previous Page">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <span class="pdf-page-indicator">
+              <span id="pdfCurrentPage">1</span> / <span id="pdfTotalPages">1</span>
+            </span>
+            <button class="pdf-btn" id="pdfNextPage" onclick="changePdfPage(1)" title="Next Page">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="pdf-zoom-controls" id="pdfZoomControls">
+            <button class="pdf-btn" onclick="zoomPdf(-0.2)" title="Zoom Out">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </button>
+            <span id="pdfZoomLevel" class="pdf-zoom-text">100%</span>
+            <button class="pdf-btn" onclick="zoomPdf(0.2)" title="Zoom In">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="11" y1="8" x2="11" y2="14" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </button>
+          </div>
+
+          <button class="pdf-btn pdf-close-btn" onclick="closePdfViewer()" title="Close Viewer (Esc)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Viewer Body -->
+      <div class="pdf-modal-body" id="pdfViewerBody">
+        <div id="pdfLoadingSpinner" class="pdf-spinner-wrap">
+          <div class="pdf-spinner"></div>
+          <p>Loading document securely...</p>
+        </div>
+        <div id="pdfCanvasContainer" class="pdf-canvas-container"></div>
+        <iframe id="pdfEmbedFrame" class="pdf-embed-frame" style="display:none;" frameborder="0"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification when user tries to Save / Print -->
+  <div id="pdfProtectToast" class="pdf-protect-toast">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      style="width:16px;height:16px;color:#ef4444;">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+    <span>Downloading & Printing is disabled for this document.</span>
+  </div>
+
+  <!-- Mozilla PDF.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- Firebase Core, Realtime Database & FCM -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js"></script>
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyALNiis2UEzQAP_vRmlzI_9ShivO2wEHFA",
       authDomain: "collegepyq-120f7.firebaseapp.com",
+      databaseURL: "https://collegepyq-120f7-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "collegepyq-120f7",
       storageBucket: "collegepyq-120f7.firebasestorage.app",
       messagingSenderId: "726374864349",
