@@ -750,13 +750,18 @@ function handleNoteModuleClick(event, branch, sem, subject, modName) {
   openPdfViewer(`${subject} - ${modName}`, link);
 }
 
+function cleanKeys(obj) {
+  if (!obj || typeof obj !== 'object') return [];
+  return Object.keys(obj).filter(k => k !== '_init');
+}
+
 // Build Notes section: Branch -> Semester -> Subject (Modules Folder or Single PDF/Link)
 function buildNotesSection(containerId, notesSection) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
 
-  const branchKeys = notesSection ? Object.keys(notesSection) : [];
+  const branchKeys = cleanKeys(notesSection);
   if (branchKeys.length === 0) {
     container.innerHTML = '<p class="muted" style="text-align:center; padding: 20px 0;">Notes will be uploaded soon by Admin.</p>';
     return;
@@ -764,7 +769,7 @@ function buildNotesSection(containerId, notesSection) {
 
   for (const branchName of branchKeys) {
     const branchObj = notesSection[branchName] || {};
-    const semKeys = Object.keys(branchObj);
+    const semKeys = cleanKeys(branchObj);
     const branchDiv = document.createElement('div');
     branchDiv.className = 'branch';
     branchDiv.setAttribute('data-name', branchName);
@@ -777,7 +782,7 @@ function buildNotesSection(containerId, notesSection) {
         <div class="body-inner">
         ${semKeys.length === 0 ? '<p class="muted" style="font-size:13px; padding:6px 0;">No semesters added yet.</p>' : sortSemesters(semKeys).map(sem => {
           const subjectsObj = branchObj[sem] || {};
-          const subjectKeys = Object.keys(subjectsObj);
+          const subjectKeys = cleanKeys(subjectsObj);
           return `
             <div class="semester" data-name="${sem}">
               <div class="sem-head" onclick="toggleNode(this)">
@@ -789,12 +794,13 @@ function buildNotesSection(containerId, notesSection) {
                 ${subjectKeys.length === 0 ? '<p class="muted" style="font-size:13px; padding:4px 0;">No notes added yet.</p>' : subjectKeys.map(subject => {
                   const entry = subjectsObj[subject];
                   if (entry && typeof entry === 'object') {
-                    const modKeys = sortSemesters(Object.keys(entry));
+                    const modKeys = sortSemesters(cleanKeys(entry));
                     return `
                       <div class="subject-folder" data-name="${subject}">
                         <div class="subject-folder-head" onclick="toggleNode(this)">
                           <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
-                          <span>📁 ${subject}</span>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--primary);flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span>${subject}</span>
                           <span class="module-count-badge">${modKeys.length} Module${modKeys.length === 1 ? '' : 's'}</span>
                         </div>
                         <div class="subject-folder-body">
@@ -844,7 +850,7 @@ function buildSection(containerId, section) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
-  for (const branchName in section) {
+  for (const branchName of cleanKeys(section)) {
     const branchDiv = document.createElement('div');
     branchDiv.className = 'branch';
     branchDiv.setAttribute('data-name', branchName);
@@ -855,7 +861,7 @@ function buildSection(containerId, section) {
       </div>
       <div class="branch-body">
         <div class="body-inner">
-        ${Object.keys(section[branchName]).sort((a,b)=>b-a).map(year => `
+        ${cleanKeys(section[branchName]).sort((a,b)=>b-a).map(year => `
           <div class="year" data-name="${year}">
             <div class="year-head" onclick="toggleNode(this)">
               <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
@@ -863,7 +869,7 @@ function buildSection(containerId, section) {
             </div>
             <div class="year-body">
               <div class="body-inner">
-              ${sortSemesters(Object.keys(section[branchName][year])).map(sem => `
+              ${sortSemesters(cleanKeys(section[branchName][year])).map(sem => `
                 <div class="semester" data-name="${sem}">
                   <div class="sem-head" onclick="toggleNode(this)">
                     <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
@@ -871,7 +877,7 @@ function buildSection(containerId, section) {
                   </div>
                   <div class="sem-body">
                     <div class="body-inner">
-                    ${Object.keys(section[branchName][year][sem]).map(subject => {
+                    ${cleanKeys(section[branchName][year][sem]).map(subject => {
                       const link = section[branchName][year][sem][subject] || '#';
                       const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                       const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
