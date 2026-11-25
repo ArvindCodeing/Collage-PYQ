@@ -6,11 +6,24 @@ let data = null;
 let currentSection = '';
 let realtimeListenerAttached = false;
 
+// Role, Permissions & Audit Log state
+let isSuperAdmin = false;
+let adminConfig = null;
+let currentSubAdminProfile = null;
+let allSubAdmins = {};
+let allActivityLogs = [];
+let roleListenersAttached = false;
+let editingSubAdminKey = null;
+
 // UI Elements & Icons
 const iconEdit = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>`;
 const iconDelete = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
 const iconAdd = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>`;
 const iconToggle = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+
+function emailToKey(email) {
+  return (email || '').trim().toLowerCase().replace(/\./g, '_dot_').replace(/[@#$[\]/]/g, '_');
+}
 
 // Listen for auth state changes
 firebase.auth().onAuthStateChanged((user) => {
@@ -19,13 +32,582 @@ firebase.auth().onAuthStateChanged((user) => {
     document.getElementById('password-section').style.display = 'none';
     document.getElementById('admin-content').style.display = 'block';
     setupRealtimeListener();
+    initRoleAndPermissions(user);
     loadSection();
   } else {
     document.getElementById('password-section').style.display = 'block';
     document.getElementById('admin-content').style.display = 'none';
+    isSuperAdmin = false;
+    currentSubAdminProfile = null;
+    roleListenersAttached = false;
     updateSyncStatus('offline', 'Not Logged In');
   }
 });
+
+// ============================================
+// Role, Real-Time Permissions & Audit Logging
+// ============================================
+
+async function initRoleAndPermissions(user) {
+  if (!window.firebase || !firebase.database || !user || !user.email) return;
+  const userEmail = user.email.trim().toLowerCase();
+  const userKey = emailToKey(userEmail);
+
+  try {
+    // Check if user is listed as a sub-admin first
+    const subSnap = await firebase.database().ref(`subAdmins/${userKey}`).once('value');
+    const cfgSnap = await firebase.database().ref('adminConfig').once('value');
+    adminConfig = cfgSnap.val();
+
+    if ((!adminConfig || !adminConfig.superAdminEmail) && !subSnap.exists()) {
+      // First owner login automatically becomes Main Super Admin
+      adminConfig = {
+        superAdminEmail: userEmail,
+        superAdminName: user.displayName || 'Main Admin',
+        createdAt: Date.now()
+      };
+      await firebase.database().ref('adminConfig').set(adminConfig);
+    }
+
+    if (adminConfig && adminConfig.superAdminEmail && adminConfig.superAdminEmail.toLowerCase() === userEmail) {
+      isSuperAdmin = true;
+      currentSubAdminProfile = null;
+      applyRoleUI();
+      attachSuperAdminListeners();
+    } else {
+      isSuperAdmin = false;
+      applyRoleUI();
+      // Attach real-time listener for THIS sub-admin's permissions (instant updates!)
+      firebase.database().ref(`subAdmins/${userKey}`).on('value', (snap) => {
+        currentSubAdminProfile = snap.val();
+        applyRoleUI();
+        buildAdminSection();
+      });
+    }
+  } catch (err) {
+    console.warn('Role initialization notice:', err);
+    // Fallback if rules block reading adminConfig
+    isSuperAdmin = true;
+    applyRoleUI();
+  }
+}
+
+function attachSuperAdminListeners() {
+  if (roleListenersAttached || !firebase.database) return;
+  roleListenersAttached = true;
+
+  firebase.database().ref('subAdmins').on('value', (snap) => {
+    allSubAdmins = snap.val() || {};
+    renderSubAdminsList();
+  });
+
+  firebase.database().ref('activityLogs').limitToLast(250).on('value', (snap) => {
+    const raw = snap.val() || {};
+    allActivityLogs = Object.keys(raw).map(k => ({ id: k, ...raw[k] }))
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    renderActivityLogs();
+  });
+}
+
+function applyRoleUI() {
+  const roleBadge = document.getElementById('roleBadge');
+  const superBtns = document.querySelectorAll('.super-only-btn');
+  const accessBanner = document.getElementById('subAdminAccessBanner');
+  const accessText = document.getElementById('subAdminAccessText');
+  const importExportRow = document.getElementById('importExportRow');
+
+  if (isSuperAdmin) {
+    if (roleBadge) {
+      roleBadge.textContent = '👑 Main Super Admin';
+      roleBadge.className = 'role-badge super';
+    }
+    superBtns.forEach(el => {
+      el.style.display = (el.id === 'importExportRow') ? 'flex' : 'inline-flex';
+    });
+    if (importExportRow) importExportRow.style.display = 'flex';
+    if (accessBanner) accessBanner.style.display = 'none';
+    syncSectionSelectOptions(null);
+    populatePermissionCheckboxes('create');
+  } else {
+    superBtns.forEach(el => { el.style.display = 'none'; });
+    if (importExportRow) importExportRow.style.display = 'none';
+    switchAdminTab('content');
+
+    if (!currentSubAdminProfile) {
+      if (roleBadge) {
+        roleBadge.textContent = '⛔ No Access Assigned';
+        roleBadge.className = 'role-badge';
+      }
+      if (accessBanner && accessText) {
+        accessBanner.style.display = 'flex';
+        accessText.innerHTML = `<strong>Access Revoked / Not Found:</strong> Aapka email (${currentUser ? currentUser.email : ''}) kisi active Sub-Admin list me nahi hai. Main Admin se sampark karein.`;
+      }
+      return;
+    }
+
+    const active = currentSubAdminProfile.active !== false;
+    const accessLabel = currentSubAdminProfile.accessType === 'full'
+      ? 'Full Access (Add, Update & Delete)'
+      : currentSubAdminProfile.accessType === 'read_only'
+        ? 'View Only (Read Only)'
+        : 'Add & Update Only (No Delete)';
+
+    if (roleBadge) {
+      roleBadge.textContent = active ? `👤 ${currentSubAdminProfile.name || 'Sub-Admin'}` : '⛔ Account Paused';
+      roleBadge.className = 'role-badge';
+    }
+
+    if (accessBanner && accessText) {
+      accessBanner.style.display = 'flex';
+      if (!active) {
+        accessText.innerHTML = `<strong>⛔ Account Paused:</strong> Main Admin ne aapka access abhi pause kar diya hai.`;
+      } else {
+        const secs = (currentSubAdminProfile.sections || []).map(s => s.toUpperCase()).join(', ') || 'None';
+        const brs = (currentSubAdminProfile.branches || ['ALL']).join(', ');
+        const sems = (currentSubAdminProfile.semesters || ['ALL']).join(', ');
+        accessText.innerHTML = `<strong>${currentSubAdminProfile.name}</strong> (${currentSubAdminProfile.email}) &bull; <strong>Access:</strong> ${accessLabel}<br><span style="font-size:12px;color:var(--muted);"><strong>Sections:</strong> ${secs} &bull; <strong>Branches:</strong> ${brs} &bull; <strong>Semesters:</strong> ${sems}</span>`;
+      }
+    }
+
+    syncSectionSelectOptions(currentSubAdminProfile.sections || []);
+  }
+}
+
+function syncSectionSelectOptions(allowedSections) {
+  const sel = document.getElementById('section-select');
+  if (!sel) return;
+  let firstAllowed = null;
+  Array.from(sel.options).forEach(opt => {
+    if (!allowedSections) {
+      opt.disabled = false;
+      opt.style.display = '';
+    } else {
+      const ok = allowedSections.includes(opt.value);
+      opt.disabled = !ok;
+      opt.style.display = ok ? '' : 'none';
+      if (ok && !firstAllowed) firstAllowed = opt.value;
+    }
+  });
+  if (allowedSections && !allowedSections.includes(sel.value) && firstAllowed) {
+    sel.value = firstAllowed;
+    currentSection = firstAllowed;
+  }
+}
+
+function switchAdminTab(tabName) {
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  const panes = {
+    content: document.getElementById('tab-content'),
+    subadmins: document.getElementById('tab-subadmins'),
+    logs: document.getElementById('tab-logs')
+  };
+  Object.keys(panes).forEach(k => {
+    if (panes[k]) panes[k].style.display = (k === tabName) ? 'block' : 'none';
+  });
+  if (tabName === 'subadmins') {
+    populatePermissionCheckboxes('create');
+    renderSubAdminsList();
+  } else if (tabName === 'logs') {
+    renderActivityLogs();
+  }
+}
+
+// Permission Check Helpers
+function canAccessSection(section) {
+  if (isSuperAdmin) return true;
+  if (!currentSubAdminProfile || currentSubAdminProfile.active === false) return false;
+  const secs = currentSubAdminProfile.sections || [];
+  return secs.includes(section);
+}
+
+function canAccessBranch(branch) {
+  if (isSuperAdmin) return true;
+  if (!currentSubAdminProfile || currentSubAdminProfile.active === false) return false;
+  const brs = currentSubAdminProfile.branches || [];
+  return brs.includes('ALL') || brs.some(b => b.toLowerCase() === (branch || '').toLowerCase());
+}
+
+function canAccessSemester(sem) {
+  if (isSuperAdmin) return true;
+  if (!currentSubAdminProfile || currentSubAdminProfile.active === false) return false;
+  const sems = currentSubAdminProfile.semesters || [];
+  return sems.includes('ALL') || sems.some(s => s.trim().toLowerCase() === (sem || '').trim().toLowerCase());
+}
+
+function canAddOrEdit() {
+  if (isSuperAdmin) return true;
+  if (!currentSubAdminProfile || currentSubAdminProfile.active === false) return false;
+  return currentSubAdminProfile.accessType === 'add_edit' || currentSubAdminProfile.accessType === 'full';
+}
+
+function canDelete() {
+  if (isSuperAdmin) return true;
+  if (!currentSubAdminProfile || currentSubAdminProfile.active === false) return false;
+  return currentSubAdminProfile.accessType === 'full';
+}
+
+async function checkPermissionOrAlert(actionType, section, branch, sem) {
+  if (isSuperAdmin) return true;
+  if (!currentSubAdminProfile || currentSubAdminProfile.active === false) {
+    await showModal('Access Denied', 'Aapka admin account active nahi hai ya Main Admin dwara pause kiya gaya hai.', false);
+    return false;
+  }
+  if (section && !canAccessSection(section)) {
+    await showModal('Access Denied', `Aapko "${section}" section ka access nahi mila hai.`, false);
+    return false;
+  }
+  if (branch && !canAccessBranch(branch)) {
+    await showModal('Access Denied', `Aapko "${branch}" branch ka access nahi mila hai.`, false);
+    return false;
+  }
+  if (sem && !canAccessSemester(sem)) {
+    await showModal('Access Denied', `Aapko "${sem}" semester ka access nahi mila hai.`, false);
+    return false;
+  }
+  if (actionType === 'delete' && !canDelete()) {
+    await showModal('No Delete Permission', 'Aapko sirf Add & Update karne ki permission hai. Delete karne ka access nahi hai.', false);
+    return false;
+  }
+  if ((actionType === 'add' || actionType === 'edit') && !canAddOrEdit()) {
+    await showModal('Read Only Access', 'Aapke paas sirf View karne ka access hai, koi change nahi kar sakte.', false);
+    return false;
+  }
+  return true;
+}
+
+// Audit Logger: Saves actor Name, Gmail, Action, Target & Timestamp
+async function logActivity(action, section, targetDetails) {
+  if (!window.firebase || !firebase.database || !currentUser) return;
+  try {
+    const actorEmail = currentUser.email || 'unknown';
+    const actorName = isSuperAdmin
+      ? ((adminConfig && adminConfig.superAdminName) || 'Main Super Admin')
+      : ((currentSubAdminProfile && currentSubAdminProfile.name) || actorEmail.split('@')[0]);
+
+    await firebase.database().ref('activityLogs').push({
+      actorName: actorName,
+      actorEmail: actorEmail,
+      actorRole: isSuperAdmin ? 'Super Admin' : 'Sub-Admin',
+      action: action,
+      section: section || currentSection || 'system',
+      target: targetDetails || '',
+      timestamp: Date.now()
+    });
+  } catch (e) {
+    console.warn('Activity log error:', e);
+  }
+}
+
+// Gather all known branches across PYQs and Notes for permission checkboxes
+function getAllKnownBranches() {
+  const set = new Set(['CSE', 'ECE', 'EE', 'ME', 'CE']);
+  if (data) {
+    ['jut', 'chaibasa', 'notes'].forEach(sec => {
+      if (data[sec] && typeof data[sec] === 'object') {
+        Object.keys(data[sec]).forEach(b => set.add(b));
+      }
+    });
+  }
+  return Array.from(set);
+}
+
+function getAllKnownSemesters() {
+  const defaults = ['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'];
+  const map = new Map();
+  defaults.forEach(s => map.set(s.toLowerCase(), s));
+  if (data) {
+    ['jut', 'chaibasa'].forEach(sec => {
+      const secObj = data[sec] || {};
+      for (const b in secObj) {
+        for (const y in secObj[b]) {
+          for (const s in secObj[b][y]) {
+            if (!map.has(s.toLowerCase())) map.set(s.toLowerCase(), s);
+          }
+        }
+      }
+    });
+    if (data.notes) {
+      for (const b in data.notes) {
+        for (const s in data.notes[b]) {
+          if (!map.has(s.toLowerCase())) map.set(s.toLowerCase(), s);
+        }
+      }
+    }
+  }
+  return sortSemesters(Array.from(map.values()));
+}
+
+function populatePermissionCheckboxes(prefix, selectedBranches = ['ALL'], selectedSemesters = ['ALL']) {
+  const brContainer = document.getElementById(`${prefix}PermBranches`);
+  const semContainer = document.getElementById(`${prefix}PermSemesters`);
+
+  if (brContainer) {
+    const branches = getAllKnownBranches();
+    const isAllBr = selectedBranches.includes('ALL');
+    brContainer.innerHTML = `
+      <label class="perm-chip"><input type="checkbox" value="ALL" ${isAllBr ? 'checked' : ''} onchange="toggleAllChip(this, '${prefix}PermBranches')"> All Branches</label>
+      ${branches.map(b => `<label class="perm-chip"><input type="checkbox" value="${b}" ${!isAllBr && selectedBranches.includes(b) ? 'checked' : ''} onchange="uncheckAllChip('${prefix}PermBranches')"> ${b}</label>`).join('')}
+    `;
+  }
+
+  if (semContainer) {
+    const sems = getAllKnownSemesters();
+    const isAllSem = selectedSemesters.includes('ALL');
+    semContainer.innerHTML = `
+      <label class="perm-chip"><input type="checkbox" value="ALL" ${isAllSem ? 'checked' : ''} onchange="toggleAllChip(this, '${prefix}PermSemesters')"> All Semesters</label>
+      ${sems.map(s => `<label class="perm-chip"><input type="checkbox" value="${s}" ${!isAllSem && selectedSemesters.some(x => x.toLowerCase() === s.toLowerCase()) ? 'checked' : ''} onchange="uncheckAllChip('${prefix}PermSemesters')"> ${s}</label>`).join('')}
+    `;
+  }
+}
+
+function toggleAllChip(allCheckbox, containerId) {
+  const box = document.getElementById(containerId);
+  if (!box || !allCheckbox.checked) return;
+  box.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    if (cb.value !== 'ALL') cb.checked = false;
+  });
+}
+
+function uncheckAllChip(containerId) {
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  const allCb = box.querySelector('input[value="ALL"]');
+  if (allCb) allCb.checked = false;
+}
+
+function readCheckedValues(containerId, defaultVal = []) {
+  const box = document.getElementById(containerId);
+  if (!box) return defaultVal;
+  const checked = Array.from(box.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+  return checked.length > 0 ? checked : defaultVal;
+}
+
+// Create Sub-Admin Firebase Auth account (via Secondary App so Super Admin stays logged in) + Save Permissions
+async function handleCreateSubAdmin(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!isSuperAdmin) return;
+
+  const name = document.getElementById('newSubAdminName').value.trim();
+  const email = document.getElementById('newSubAdminEmail').value.trim().toLowerCase();
+  const password = document.getElementById('newSubAdminPassword').value;
+  const accessType = document.getElementById('newSubAdminAccessType').value;
+  const sections = readCheckedValues('createPermSections', ['notes']);
+  const branches = readCheckedValues('createPermBranches', ['ALL']);
+  const semesters = readCheckedValues('createPermSemesters', ['ALL']);
+  const btn = document.getElementById('createSubAdminBtn');
+
+  if (!name || !email || !password) {
+    await showModal('Missing Info', 'Name, Email aur Password sabhi zaroori hain.', false);
+    return;
+  }
+  if (adminConfig && adminConfig.superAdminEmail === email) {
+    await showModal('Error', 'Ye email pehle se Main Super Admin hai.', false);
+    return;
+  }
+
+  btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.textContent = 'Creating Sub-Admin...';
+
+  let secondaryApp = null;
+  try {
+    // Secondary Firebase App prevents signing out the Main Super Admin!
+    const existing = firebase.apps.find(a => a.name === 'SubAdminCreator');
+    secondaryApp = existing || firebase.initializeApp(firebase.app().options, 'SubAdminCreator');
+
+    try {
+      await secondaryApp.auth().createUserWithEmailAndPassword(email, password);
+      await secondaryApp.auth().signOut();
+    } catch (authErr) {
+      if (authErr.code === 'auth/email-already-in-use') {
+        // Account already exists in Firebase Auth — still save/update permissions in RTDB
+        console.warn('Email already exists in Auth, updating RTDB permissions.');
+      } else {
+        throw authErr;
+      }
+    }
+
+    const key = emailToKey(email);
+    await firebase.database().ref(`subAdmins/${key}`).set({
+      name,
+      email,
+      active: true,
+      accessType,
+      sections,
+      branches,
+      semesters,
+      createdAt: Date.now()
+    });
+
+    await logActivity('PERMISSION', 'system', `Created Sub-Admin: ${name} (${email}) [${accessType}]`);
+    document.getElementById('createSubAdminForm').reset();
+    populatePermissionCheckboxes('create');
+    await showModal('Success', `Sub-Admin "${name}" (${email}) create ho gaya hai aur uski permissions live save ho gayi hain!`, false);
+  } catch (err) {
+    console.error('Create Sub-Admin error:', err);
+    await showModal('Error', 'Failed to create Sub-Admin: ' + err.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
+
+function renderSubAdminsList() {
+  const container = document.getElementById('subAdminsList');
+  if (!container) return;
+  const keys = Object.keys(allSubAdmins || {});
+  if (keys.length === 0) {
+    container.innerHTML = '<p class="muted">Abhi koi Sub-Admin nahi banaya gaya hai. Upar form se banayein.</p>';
+    return;
+  }
+
+  container.innerHTML = keys.map(key => {
+    const sa = allSubAdmins[key];
+    const active = sa.active !== false;
+    const typeClass = !active ? 'paused' : (sa.accessType === 'full' ? 'full' : 'nodelete');
+    const typeLabel = !active
+      ? '⏸️ Paused'
+      : sa.accessType === 'full'
+        ? '✅ Full Access (Add, Edit & Delete)'
+        : sa.accessType === 'read_only'
+          ? '👁️ View Only'
+          : '✏️ Add & Update Only (No Delete)';
+    const secs = (sa.sections || []).map(s => s.toUpperCase()).join(', ') || 'None';
+    const brs = (sa.branches || ['ALL']).join(', ');
+    const sems = (sa.semesters || ['ALL']).join(', ');
+
+    return `
+      <div class="subadmin-row">
+        <div class="subadmin-info">
+          <div style="font-weight:700; font-size:15px;">${sa.name || 'Sub-Admin'} <span class="muted" style="font-weight:500; font-size:13px;">(${sa.email})</span></div>
+          <div class="subadmin-tags">
+            <span class="perm-tag ${typeClass}">${typeLabel}</span>
+            <span class="perm-tag">Sections: ${secs}</span>
+            <span class="perm-tag">Branches: ${brs}</span>
+            <span class="perm-tag">Semesters: ${sems}</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn primary" style="padding:8px 12px; font-size:12px;" onclick="openEditAccessModal('${key}')">Edit Access</button>
+          <button class="btn" style="padding:8px 12px; font-size:12px; color:#ef4444;" onclick="removeSubAdmin('${key}')">Remove</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openEditAccessModal(key) {
+  const sa = allSubAdmins[key];
+  if (!sa) return;
+  editingSubAdminKey = key;
+
+  document.getElementById('editAccessUserLabel').textContent = `Gmail: ${sa.email}`;
+  document.getElementById('editAccessName').value = sa.name || '';
+  document.getElementById('editAccessActive').value = sa.active === false ? 'false' : 'true';
+  document.getElementById('editAccessType').value = sa.accessType || 'add_edit';
+
+  const secBox = document.getElementById('editPermSections');
+  if (secBox) {
+    const secs = sa.sections || [];
+    secBox.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = secs.includes(cb.value);
+    });
+  }
+
+  populatePermissionCheckboxes('edit', sa.branches || ['ALL'], sa.semesters || ['ALL']);
+  document.getElementById('editAccessModal').classList.add('show');
+}
+
+function closeEditAccessModal() {
+  const modal = document.getElementById('editAccessModal');
+  if (modal) modal.classList.remove('show');
+  editingSubAdminKey = null;
+}
+
+async function saveSubAdminAccessChanges() {
+  if (!editingSubAdminKey || !isSuperAdmin) return;
+  const sa = allSubAdmins[editingSubAdminKey];
+  if (!sa) return;
+
+  const name = document.getElementById('editAccessName').value.trim() || sa.name;
+  const active = document.getElementById('editAccessActive').value === 'true';
+  const accessType = document.getElementById('editAccessType').value;
+  const sections = readCheckedValues('editPermSections', []);
+  const branches = readCheckedValues('editPermBranches', ['ALL']);
+  const semesters = readCheckedValues('editPermSemesters', ['ALL']);
+
+  await firebase.database().ref(`subAdmins/${editingSubAdminKey}`).update({
+    name,
+    active,
+    accessType,
+    sections,
+    branches,
+    semesters,
+    updatedAt: Date.now()
+  });
+
+  await logActivity('PERMISSION', 'system', `Updated access for ${name} (${sa.email}): ${active ? accessType : 'PAUSED'}, Branches: ${branches.join(',')}, Semesters: ${semesters.join(',')}`);
+  closeEditAccessModal();
+}
+
+async function removeSubAdmin(key) {
+  if (!isSuperAdmin) return;
+  const sa = allSubAdmins[key];
+  const confirmed = await showModal('Remove Sub-Admin', `Remove "${sa ? sa.name : ''}" (${sa ? sa.email : ''}) from admin access?`, false);
+  if (confirmed) {
+    await firebase.database().ref(`subAdmins/${key}`).remove();
+    await logActivity('PERMISSION', 'system', `Removed Sub-Admin: ${sa ? sa.name : key} (${sa ? sa.email : ''})`);
+  }
+}
+
+function renderActivityLogs() {
+  const container = document.getElementById('activityLogsList');
+  if (!container) return;
+
+  const q = (document.getElementById('logSearchInput')?.value || '').trim().toLowerCase();
+  const filtered = allActivityLogs.filter(item => {
+    if (!q) return true;
+    return (
+      (item.actorName || '').toLowerCase().includes(q) ||
+      (item.actorEmail || '').toLowerCase().includes(q) ||
+      (item.action || '').toLowerCase().includes(q) ||
+      (item.target || '').toLowerCase().includes(q) ||
+      (item.section || '').toLowerCase().includes(q)
+    );
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center; padding:24px;">No activity logs found.</p>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(log => {
+    const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleString() : '';
+    return `
+      <div class="log-item">
+        <div class="log-top">
+          <div>
+            <span class="log-actor">${log.actorName || 'Admin'}</span>
+            <span class="log-email">(${log.actorEmail || ''}) • ${log.actorRole || ''}</span>
+          </div>
+          <span class="log-action-badge ${log.action || 'UPDATE'}">${log.action || 'UPDATE'}</span>
+        </div>
+        <div class="log-target"><strong>[${(log.section || '').toUpperCase()}]</strong> ${log.target || ''}</div>
+        <div class="log-time">${timeStr}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function clearActivityLogs() {
+  if (!isSuperAdmin) return;
+  const confirmed = await showModal('Clear Activity Logs', 'Delete all recorded activity logs?', false);
+  if (confirmed) {
+    await firebase.database().ref('activityLogs').remove();
+  }
+}
 
 // Update Realtime Database Status Badge
 function updateSyncStatus(status, text) {
@@ -126,6 +708,10 @@ async function saveData() {
 
 // Push local data directly to Realtime Database
 async function seedFirebaseFromLocal() {
+  if (!isSuperAdmin) {
+    await showModal('Access Denied', 'Only Main Super Admin can push entire database.', false);
+    return;
+  }
   if (!data || Object.keys(data).length === 0) {
     await showModal('Error', 'No data available to push.', false);
     return;
@@ -138,6 +724,7 @@ async function seedFirebaseFromLocal() {
       updateSyncStatus('connected', 'Live in Realtime DB');
       const warningBox = document.getElementById('rtdbRulesWarning');
       if (warningBox) warningBox.style.display = 'none';
+      await logActivity('IMPORT', 'system', 'Pushed full local data to Realtime Database');
       await showModal('Success', 'Successfully pushed data to Firebase Realtime Database! All students will see changes live.', false);
     } catch (e) {
       console.error(e);
@@ -292,12 +879,20 @@ function loadSection() {
   buildAdminSection();
 }
 
-// Build Admin Dashboard Tree
+// Build Admin Dashboard Tree (with real-time role & permission filtering)
 function buildAdminSection() {
   updateStorageStats();
   const container = document.getElementById('section-content');
   if (!container) return;
   container.innerHTML = '';
+
+  if (currentUser && !isSuperAdmin && !canAccessSection(currentSection)) {
+    container.innerHTML = `<p class="muted" style="text-align:center; padding:32px;">⛔ Aapko is section (<strong>${currentSection.toUpperCase()}</strong>) ka access nahi diya gaya hai.</p>`;
+    return;
+  }
+
+  const allowEdit = canAddOrEdit();
+  const allowDelete = canDelete();
 
   if (currentSection === 'notes') {
     if (!data) data = {};
@@ -314,14 +909,18 @@ function buildAdminSection() {
   }
 
   const sectionData = data[currentSection];
+  let visibleBranchCount = 0;
   for (const branchName in sectionData) {
+    if (!canAccessBranch(branchName)) continue;
+    visibleBranchCount++;
+
     const branchDiv = document.createElement('div');
     branchDiv.className = 'branch';
     branchDiv.innerHTML = `
       <div class="branch-head" onclick="toggleNode(this)">
         <span class="toggler">${iconToggle}</span> ${branchName}
         <div class="action-bar" onclick="event.stopPropagation()">
-          <button class="btn-icon" onclick="deleteBranch('${escapeStr(branchName)}')" aria-label="Delete Branch" title="Delete Branch">${iconDelete}</button>
+          ${allowDelete ? `<button class="btn-icon" onclick="deleteBranch('${escapeStr(branchName)}')" aria-label="Delete Branch" title="Delete Branch">${iconDelete}</button>` : ''}
         </div>
       </div>
       <div class="branch-body">
@@ -331,21 +930,21 @@ function buildAdminSection() {
             <div class="year-head" onclick="toggleNode(this)">
               <span class="toggler">${iconToggle}</span> ${year}
               <div class="action-bar" onclick="event.stopPropagation()">
-                <button class="btn-icon edit" onclick="editYear('${escapeStr(branchName)}', '${escapeStr(year)}')" aria-label="Edit">${iconEdit}</button>
-                <button class="btn-icon" onclick="deleteYear('${escapeStr(branchName)}', '${escapeStr(year)}')" aria-label="Delete">${iconDelete}</button>
+                ${allowEdit ? `<button class="btn-icon edit" onclick="editYear('${escapeStr(branchName)}', '${escapeStr(year)}')" aria-label="Edit">${iconEdit}</button>` : ''}
+                ${allowDelete ? `<button class="btn-icon" onclick="deleteYear('${escapeStr(branchName)}', '${escapeStr(year)}')" aria-label="Delete">${iconDelete}</button>` : ''}
               </div>
             </div>
             <div class="year-body">
               <div class="body-inner">
-              ${sortSemesters(Object.keys(sectionData[branchName][year])).map(sem => {
+              ${sortSemesters(Object.keys(sectionData[branchName][year])).filter(sem => canAccessSemester(sem)).map(sem => {
                 const uniqueId = safeId(`${branchName}-${year}-${sem}`);
                 return `
                 <div class="semester">
                   <div class="sem-head" onclick="toggleNode(this)">
                     <span class="toggler">${iconToggle}</span> ${sem}
                     <div class="action-bar" onclick="event.stopPropagation()">
-                      <button class="btn-icon edit" onclick="editSemester('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}')" aria-label="Edit">${iconEdit}</button>
-                      <button class="btn-icon" onclick="deleteSemester('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}')" aria-label="Delete">${iconDelete}</button>
+                      ${allowEdit ? `<button class="btn-icon edit" onclick="editSemester('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}')" aria-label="Edit">${iconEdit}</button>` : ''}
+                      ${allowDelete ? `<button class="btn-icon" onclick="deleteSemester('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}')" aria-label="Delete">${iconDelete}</button>` : ''}
                     </div>
                   </div>
                   <div class="sem-body">
@@ -361,12 +960,13 @@ function buildAdminSection() {
                           ${subject}
                           ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                         </a>
-                        <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>
-                        <button class="btn-icon" onclick="deleteSubject('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>
+                        ${allowEdit ? `<button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>` : ''}
+                        ${allowDelete ? `<button class="btn-icon" onclick="deleteSubject('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>` : ''}
                       </div>
                     `;
                     }).join('')}
 
+                    ${allowEdit ? `
                     <!-- Add Subject Box with Link or PDF -->
                     <div class="admin-subject-box">
                       <div class="box-title">
@@ -391,40 +991,51 @@ function buildAdminSection() {
                         <div id="progressBar-${uniqueId}" class="upload-progress-bar"></div>
                       </div>
                     </div>
+                    ` : ''}
 
                     </div>
                   </div>
                 </div>
               `;
               }).join('')}
+              ${allowEdit ? `
               <div class="admin-add-row">
                 <input type="text" class="input" id="semInput-${safeId(`${branchName}-${year}`)}" placeholder="Enter semester (e.g. semester 3)">
                 <button class="btn primary" onclick="addSemester('${escapeStr(branchName)}', '${escapeStr(year)}')">${iconAdd} Add Sem</button>
               </div>
+              ` : ''}
               </div>
             </div>
           </div>
         `).join('')}
+        ${allowEdit ? `
         <div class="admin-add-row">
           <input type="number" class="input" id="yearInput-${safeId(branchName)}" placeholder="Enter year (e.g. 2025)">
           <button class="btn primary" onclick="addYear('${escapeStr(branchName)}')">${iconAdd} Add Year</button>
         </div>
+        ` : ''}
         </div>
       </div>
     `;
     container.appendChild(branchDiv);
   }
 
-  // Row to add a new Branch
-  const newBranchRow = document.createElement('div');
-  newBranchRow.className = 'admin-add-row';
-  newBranchRow.style.marginTop = '24px';
-  newBranchRow.style.paddingTop = '16px';
-  newBranchRow.innerHTML = `
-    <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
-    <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
-  `;
-  container.appendChild(newBranchRow);
+  if (visibleBranchCount === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center; padding:32px;">Aapko is section me kisi bhi branch ka access nahi diya gaya hai.</p>';
+  }
+
+  // Only Super Admin can create top-level Branches
+  if (isSuperAdmin) {
+    const newBranchRow = document.createElement('div');
+    newBranchRow.className = 'admin-add-row';
+    newBranchRow.style.marginTop = '24px';
+    newBranchRow.style.paddingTop = '16px';
+    newBranchRow.innerHTML = `
+      <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
+      <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
+    `;
+    container.appendChild(newBranchRow);
+  }
 }
 
 // Helpers
@@ -1080,8 +1691,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ADD SUBJECT with Link OR PDF Upload (Storage + Universal Fallback)
+// ADD SUBJECT with Link OR PDF Upload
 async function addSubjectWithMedia(branch, year, sem, uniqueId) {
+  if (!(await checkPermissionOrAlert('add', currentSection, branch, sem))) return;
   const nameInput = document.getElementById(`subName-${uniqueId}`);
   const linkInput = document.getElementById(`subLink-${uniqueId}`);
   const fileInput = document.getElementById(`subFile-${uniqueId}`);
@@ -1140,6 +1752,7 @@ async function addSubjectWithMedia(branch, year, sem, uniqueId) {
   // Save subject to data structure & sync to Realtime Database
   data[currentSection][branch][year][sem][subject] = finalUrl;
   await saveData();
+  await logActivity('ADD', currentSection, `${branch} > ${year} > ${sem} > ${subject} (${file ? 'PDF' : 'Link'})`);
   buildAdminSection();
 }
 
@@ -1216,6 +1829,7 @@ function handleModalFileChange(fileInput) {
 async function handleSubjectModalSave() {
   if (!editSubjectState) return;
   const { branch, year, sem, oldSubject, moduleName } = editSubjectState;
+  if (!(await checkPermissionOrAlert('edit', currentSection, branch, sem))) return;
 
   const nameInput = document.getElementById('editSubjectName');
   const linkInput = document.getElementById('editSubjectLink');
@@ -1293,23 +1907,33 @@ async function handleSubjectModalSave() {
   saveBtn.textContent = 'Save Changes';
   closeSubjectModal();
   await saveData();
+  const pathDesc = (year === null && currentSection === 'notes')
+    ? (moduleName ? `${branch} > ${sem} > ${oldSubject} > ${newSubject}` : `${branch} > ${sem} > ${newSubject}`)
+    : `${branch} > ${year} > ${sem} > ${newSubject}`;
+  await logActivity('UPDATE', currentSection, `Updated: ${pathDesc}`);
   buildAdminSection();
 }
 
 // Delete Subject
 async function deleteSubject(branch, year, sem, subject) {
+  if (!(await checkPermissionOrAlert('delete', currentSection, branch, sem))) return;
   const confirmed = await showModal('Delete Subject', `Are you sure you want to delete subject "${subject}"?`, false);
   if (confirmed) {
     const oldUrl = data[currentSection][branch][year][sem][subject];
     await cleanupRtdbPdfIfNeeded(oldUrl);
     delete data[currentSection][branch][year][sem][subject];
     await saveData();
+    await logActivity('DELETE', currentSection, `${branch} > ${year} > ${sem} > ${subject}`);
     buildAdminSection();
   }
 }
 
 // Branch Management
 async function addNewBranch() {
+  if (!isSuperAdmin) {
+    await showModal('Access Denied', 'Sirf Main Super Admin hi nayi Branch add kar sakta hai.', false);
+    return;
+  }
   const input = document.getElementById('newBranchInput');
   const branch = input ? input.value.trim().toUpperCase() : '';
   if (!branch) return;
@@ -1321,26 +1945,31 @@ async function addNewBranch() {
   data[currentSection][branch] = {};
   if (input) input.value = '';
   await saveData();
+  await logActivity('ADD', currentSection, `Added Branch: ${branch}`);
   buildAdminSection();
 }
 
 async function deleteBranch(branch) {
+  if (!(await checkPermissionOrAlert('delete', currentSection, branch, null))) return;
   const confirmed = await showModal('Delete Branch', `Are you sure you want to delete branch "${branch}" and all its subjects?`, false);
   if (confirmed) {
     delete data[currentSection][branch];
     await saveData();
+    await logActivity('DELETE', currentSection, `Deleted Branch: ${branch}`);
     buildAdminSection();
   }
 }
 
 // Year Management
 async function addYear(branch) {
+  if (!(await checkPermissionOrAlert('add', currentSection, branch, null))) return;
   const input = document.getElementById('yearInput-' + safeId(branch));
   const year = input ? input.value.trim() : '';
   if (year && !data[currentSection][branch][year]) {
     data[currentSection][branch][year] = {};
     input.value = '';
     await saveData();
+    await logActivity('ADD', currentSection, `${branch} > Added Year: ${year}`);
     buildAdminSection();
   } else if (year) {
     await showModal('Error', 'Year already exists.', false);
@@ -1348,32 +1977,38 @@ async function addYear(branch) {
 }
 
 async function editYear(branch, oldYear) {
+  if (!(await checkPermissionOrAlert('edit', currentSection, branch, null))) return;
   const newYear = await showModal('Edit Year', `Enter new year:`, true, oldYear);
   if (newYear && newYear.trim() !== '' && newYear !== oldYear) {
     data[currentSection][branch][newYear] = data[currentSection][branch][oldYear];
     delete data[currentSection][branch][oldYear];
     await saveData();
+    await logActivity('UPDATE', currentSection, `${branch} > Renamed Year ${oldYear} to ${newYear}`);
     buildAdminSection();
   }
 }
 
 async function deleteYear(branch, year) {
+  if (!(await checkPermissionOrAlert('delete', currentSection, branch, null))) return;
   const confirmed = await showModal('Delete Year', `Are you sure you want to delete year ${year}?`, false);
   if (confirmed) {
     delete data[currentSection][branch][year];
     await saveData();
+    await logActivity('DELETE', currentSection, `${branch} > Deleted Year: ${year}`);
     buildAdminSection();
   }
 }
 
 // Semester Management
 async function addSemester(branch, year) {
+  if (!(await checkPermissionOrAlert('add', currentSection, branch, null))) return;
   const input = document.getElementById('semInput-' + safeId(`${branch}-${year}`));
   const sem = input ? input.value.trim() : '';
   if (sem && !data[currentSection][branch][year][sem]) {
     data[currentSection][branch][year][sem] = {};
     input.value = '';
     await saveData();
+    await logActivity('ADD', currentSection, `${branch} > ${year} > Added Semester: ${sem}`);
     buildAdminSection();
   } else if (sem) {
     await showModal('Error', 'Semester already exists.', false);
@@ -1381,20 +2016,24 @@ async function addSemester(branch, year) {
 }
 
 async function editSemester(branch, year, oldSem) {
+  if (!(await checkPermissionOrAlert('edit', currentSection, branch, oldSem))) return;
   const newSem = await showModal('Edit Semester', `Enter new semester:`, true, oldSem);
   if (newSem && newSem.trim() !== '' && newSem !== oldSem) {
     data[currentSection][branch][year][newSem] = data[currentSection][branch][year][oldSem];
     delete data[currentSection][branch][year][oldSem];
     await saveData();
+    await logActivity('UPDATE', currentSection, `${branch} > ${year} > Renamed Semester ${oldSem} to ${newSem}`);
     buildAdminSection();
   }
 }
 
 async function deleteSemester(branch, year, sem) {
+  if (!(await checkPermissionOrAlert('delete', currentSection, branch, sem))) return;
   const confirmed = await showModal('Delete Semester', `Are you sure you want to delete semester ${sem}?`, false);
   if (confirmed) {
     delete data[currentSection][branch][year][sem];
     await saveData();
+    await logActivity('DELETE', currentSection, `${branch} > ${year} > Deleted Semester: ${sem}`);
     buildAdminSection();
   }
 }
@@ -1412,6 +2051,10 @@ function exportData() {
 }
 
 async function importData() {
+  if (!isSuperAdmin) {
+    await showModal('Access Denied', 'Only Main Super Admin can import JSON.', false);
+    return;
+  }
   const fileInput = document.getElementById('importFile');
   if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
     await showModal('Warning', 'Please choose a JSON file first.', false);
@@ -1429,6 +2072,7 @@ async function importData() {
         data = parsed;
       }
       await saveData();
+      await logActivity('IMPORT', 'system', `Imported JSON (${merge ? 'Merged' : 'Replaced'})`);
       buildAdminSection();
       await showModal('Success', 'Import successful and synced to Realtime Database.', false);
       fileInput.value = '';
@@ -1451,7 +2095,14 @@ async function importData() {
 
 function buildNotesAdminSection(container) {
   const notesData = data.notes || {};
+  const allowEdit = canAddOrEdit();
+  const allowDelete = canDelete();
+  let visibleBranchCount = 0;
+
   for (const branchName in notesData) {
+    if (!canAccessBranch(branchName)) continue;
+    visibleBranchCount++;
+
     const branchObj = notesData[branchName] || {};
     const branchDiv = document.createElement('div');
     branchDiv.className = 'branch';
@@ -1459,12 +2110,12 @@ function buildNotesAdminSection(container) {
       <div class="branch-head" onclick="toggleNode(this)">
         <span class="toggler">${iconToggle}</span> ${branchName}
         <div class="action-bar" onclick="event.stopPropagation()">
-          <button class="btn-icon" onclick="deleteBranch('${escapeStr(branchName)}')" aria-label="Delete Branch" title="Delete Branch">${iconDelete}</button>
+          ${allowDelete ? `<button class="btn-icon" onclick="deleteBranch('${escapeStr(branchName)}')" aria-label="Delete Branch" title="Delete Branch">${iconDelete}</button>` : ''}
         </div>
       </div>
       <div class="branch-body">
         <div class="body-inner">
-        ${sortSemesters(Object.keys(branchObj)).map(sem => {
+        ${sortSemesters(Object.keys(branchObj)).filter(sem => canAccessSemester(sem)).map(sem => {
           const uniqueId = safeId(`notes-${branchName}-${sem}`);
           const semObj = branchObj[sem] || {};
           return `
@@ -1472,8 +2123,8 @@ function buildNotesAdminSection(container) {
             <div class="sem-head" onclick="toggleNode(this)">
               <span class="toggler">${iconToggle}</span> ${sem}
               <div class="action-bar" onclick="event.stopPropagation()">
-                <button class="btn-icon edit" onclick="editNoteSemester('${escapeStr(branchName)}', '${escapeStr(sem)}')" aria-label="Edit">${iconEdit}</button>
-                <button class="btn-icon" onclick="deleteNoteSemester('${escapeStr(branchName)}', '${escapeStr(sem)}')" aria-label="Delete">${iconDelete}</button>
+                ${allowEdit ? `<button class="btn-icon edit" onclick="editNoteSemester('${escapeStr(branchName)}', '${escapeStr(sem)}')" aria-label="Edit">${iconEdit}</button>` : ''}
+                ${allowDelete ? `<button class="btn-icon" onclick="deleteNoteSemester('${escapeStr(branchName)}', '${escapeStr(sem)}')" aria-label="Delete">${iconDelete}</button>` : ''}
               </div>
             </div>
             <div class="sem-body">
@@ -1491,8 +2142,8 @@ function buildNotesAdminSection(container) {
                       <span style="font-weight:600;">📁 ${subject}</span>
                       <span class="module-count-badge">${modKeys.length} Module${modKeys.length === 1 ? '' : 's'}</span>
                       <div class="action-bar" onclick="event.stopPropagation()">
-                        <button class="btn-icon edit" onclick="editNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Rename Subject" title="Rename Subject">${iconEdit}</button>
-                        <button class="btn-icon" onclick="deleteNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete Subject Folder" title="Delete Subject Folder">${iconDelete}</button>
+                        ${allowEdit ? `<button class="btn-icon edit" onclick="editNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Rename Subject" title="Rename Subject">${iconEdit}</button>` : ''}
+                        ${allowDelete ? `<button class="btn-icon" onclick="deleteNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete Subject Folder" title="Delete Subject Folder">${iconDelete}</button>` : ''}
                       </div>
                     </div>
                     <div class="subject-folder-body">
@@ -1508,12 +2159,13 @@ function buildNotesAdminSection(container) {
                               ${modName}
                               ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                             </a>
-                            <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" aria-label="Edit Module" title="Edit Module">${iconEdit}</button>
-                            <button class="btn-icon" onclick="deleteNoteModule('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" aria-label="Delete Module" title="Delete Module">${iconDelete}</button>
+                            ${allowEdit ? `<button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" aria-label="Edit Module" title="Edit Module">${iconEdit}</button>` : ''}
+                            ${allowDelete ? `<button class="btn-icon" onclick="deleteNoteModule('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" aria-label="Delete Module" title="Delete Module">${iconDelete}</button>` : ''}
                           </div>
                           `;
                         }).join('')}
 
+                        ${allowEdit ? `
                         <!-- Add Module Box inside Subject Folder -->
                         <div class="admin-subject-box">
                           <div class="box-title">
@@ -1538,6 +2190,7 @@ function buildNotesAdminSection(container) {
                             <div id="progressBar-${modUniqueId}" class="upload-progress-bar"></div>
                           </div>
                         </div>
+                        ` : ''}
                       </div>
                     </div>
                   </div>
@@ -1555,12 +2208,13 @@ function buildNotesAdminSection(container) {
                     ${subject}
                     ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                   </a>
-                  <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>
-                  <button class="btn-icon" onclick="deleteNote('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>
+                  ${allowEdit ? `<button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>` : ''}
+                  ${allowDelete ? `<button class="btn-icon" onclick="deleteNote('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>` : ''}
                 </div>
               `;
               }).join('')}
 
+              ${allowEdit ? `
               <!-- Option 1: Create Subject Folder (For Multiple Modules) -->
               <div class="admin-add-row" style="margin-bottom: 10px;">
                 <input type="text" class="input" id="noteSubFolderInput-${uniqueId}" placeholder="1st Step: Subject Name for Modules (e.g. Mathematics)">
@@ -1591,32 +2245,41 @@ function buildNotesAdminSection(container) {
                   <div id="progressBar-${uniqueId}" class="upload-progress-bar"></div>
                 </div>
               </div>
+              ` : ''}
 
               </div>
             </div>
           </div>
           `;
         }).join('')}
+        ${allowEdit ? `
         <div class="admin-add-row">
           <input type="text" class="input" id="noteSemInput-${safeId(branchName)}" placeholder="Enter semester (e.g. Semester 1)">
           <button class="btn primary" onclick="addNoteSemester('${escapeStr(branchName)}')">${iconAdd} Add Sem</button>
         </div>
+        ` : ''}
         </div>
       </div>
     `;
     container.appendChild(branchDiv);
   }
 
-  // Row to add a new Branch
-  const newBranchRow = document.createElement('div');
-  newBranchRow.className = 'admin-add-row';
-  newBranchRow.style.marginTop = '24px';
-  newBranchRow.style.paddingTop = '16px';
-  newBranchRow.innerHTML = `
-    <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
-    <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
-  `;
-  container.appendChild(newBranchRow);
+  if (visibleBranchCount === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center; padding:32px;">Aapko Notes me kisi bhi branch ka access nahi diya gaya hai.</p>';
+  }
+
+  // Only Super Admin can add new Branches
+  if (isSuperAdmin) {
+    const newBranchRow = document.createElement('div');
+    newBranchRow.className = 'admin-add-row';
+    newBranchRow.style.marginTop = '24px';
+    newBranchRow.style.paddingTop = '16px';
+    newBranchRow.innerHTML = `
+      <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
+      <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
+    `;
+    container.appendChild(newBranchRow);
+  }
 }
 
 function handleAdminNoteClick(event, branch, sem, subject) {
@@ -1632,6 +2295,7 @@ function handleAdminNoteClick(event, branch, sem, subject) {
 }
 
 async function addNoteWithMedia(branch, sem, uniqueId) {
+  if (!(await checkPermissionOrAlert('add', 'notes', branch, sem))) return;
   const nameInput = document.getElementById(`subName-${uniqueId}`);
   const linkInput = document.getElementById(`subLink-${uniqueId}`);
   const fileInput = document.getElementById(`subFile-${uniqueId}`);
@@ -1683,27 +2347,32 @@ async function addNoteWithMedia(branch, sem, uniqueId) {
 
   data.notes[branch][sem][subject] = finalUrl;
   await saveData();
+  await logActivity('ADD', 'notes', `${branch} > ${sem} > ${subject} (${file ? 'PDF' : 'Link'})`);
   buildAdminSection();
 }
 
 async function deleteNote(branch, sem, subject) {
+  if (!(await checkPermissionOrAlert('delete', 'notes', branch, sem))) return;
   const confirmed = await showModal('Delete Note', `Are you sure you want to delete note "${subject}"?`, false);
   if (confirmed) {
     const oldUrl = data.notes[branch][sem][subject];
     await cleanupRtdbPdfIfNeeded(oldUrl);
     delete data.notes[branch][sem][subject];
     await saveData();
+    await logActivity('DELETE', 'notes', `${branch} > ${sem} > ${subject}`);
     buildAdminSection();
   }
 }
 
 async function addNoteSemester(branch) {
+  if (!(await checkPermissionOrAlert('add', 'notes', branch, null))) return;
   const input = document.getElementById('noteSemInput-' + safeId(branch));
   const sem = input ? input.value.trim() : '';
   if (sem && !data.notes[branch][sem]) {
     data.notes[branch][sem] = {};
     input.value = '';
     await saveData();
+    await logActivity('ADD', 'notes', `${branch} > Added Semester: ${sem}`);
     buildAdminSection();
   } else if (sem) {
     await showModal('Error', 'Semester already exists.', false);
@@ -1711,16 +2380,19 @@ async function addNoteSemester(branch) {
 }
 
 async function editNoteSemester(branch, oldSem) {
+  if (!(await checkPermissionOrAlert('edit', 'notes', branch, oldSem))) return;
   const newSem = await showModal('Edit Semester', `Enter new semester:`, true, oldSem);
   if (newSem && newSem.trim() !== '' && newSem !== oldSem) {
     data.notes[branch][newSem.trim()] = data.notes[branch][oldSem];
     delete data.notes[branch][oldSem];
     await saveData();
+    await logActivity('UPDATE', 'notes', `${branch} > Renamed Semester ${oldSem} to ${newSem.trim()}`);
     buildAdminSection();
   }
 }
 
 async function deleteNoteSemester(branch, sem) {
+  if (!(await checkPermissionOrAlert('delete', 'notes', branch, sem))) return;
   const confirmed = await showModal('Delete Semester', `Are you sure you want to delete semester ${sem} and all its notes?`, false);
   if (confirmed) {
     const semObj = data.notes[branch][sem] || {};
@@ -1735,12 +2407,14 @@ async function deleteNoteSemester(branch, sem) {
     }
     delete data.notes[branch][sem];
     await saveData();
+    await logActivity('DELETE', 'notes', `${branch} > Deleted Semester: ${sem}`);
     buildAdminSection();
   }
 }
 
 // Subject Folder & Module CRUD for Notes
 async function addNoteSubjectFolder(branch, sem, uniqueId) {
+  if (!(await checkPermissionOrAlert('add', 'notes', branch, sem))) return;
   const input = document.getElementById(`noteSubFolderInput-${uniqueId}`);
   const subjectName = input ? input.value.trim() : '';
   if (!subjectName) {
@@ -1755,10 +2429,12 @@ async function addNoteSubjectFolder(branch, sem, uniqueId) {
   data.notes[branch][sem][subjectName] = {};
   if (input) input.value = '';
   await saveData();
+  await logActivity('ADD', 'notes', `${branch} > ${sem} > Created Subject Folder: ${subjectName}`);
   buildAdminSection();
 }
 
 async function editNoteSubjectFolder(branch, sem, oldSubject) {
+  if (!(await checkPermissionOrAlert('edit', 'notes', branch, sem))) return;
   const newSubject = await showModal('Rename Subject', 'Enter new Subject Name:', true, oldSubject);
   if (newSubject && newSubject.trim() !== '' && newSubject.trim() !== oldSubject) {
     const trimmed = newSubject.trim();
@@ -1769,11 +2445,13 @@ async function editNoteSubjectFolder(branch, sem, oldSubject) {
     data.notes[branch][sem][trimmed] = data.notes[branch][sem][oldSubject];
     delete data.notes[branch][sem][oldSubject];
     await saveData();
+    await logActivity('UPDATE', 'notes', `${branch} > ${sem} > Renamed Subject Folder ${oldSubject} to ${trimmed}`);
     buildAdminSection();
   }
 }
 
 async function deleteNoteSubjectFolder(branch, sem, subject) {
+  if (!(await checkPermissionOrAlert('delete', 'notes', branch, sem))) return;
   const confirmed = await showModal('Delete Subject Folder', `Are you sure you want to delete "${subject}" and all its modules?`, false);
   if (confirmed) {
     const folderObj = data.notes[branch][sem][subject] || {};
@@ -1782,6 +2460,7 @@ async function deleteNoteSubjectFolder(branch, sem, subject) {
     }
     delete data.notes[branch][sem][subject];
     await saveData();
+    await logActivity('DELETE', 'notes', `${branch} > ${sem} > Deleted Subject Folder: ${subject}`);
     buildAdminSection();
   }
 }
@@ -1799,6 +2478,7 @@ function handleAdminModuleClick(event, branch, sem, subject, modName) {
 }
 
 async function addNoteModuleWithMedia(branch, sem, subject, uniqueId) {
+  if (!(await checkPermissionOrAlert('add', 'notes', branch, sem))) return;
   const nameInput = document.getElementById(`subName-${uniqueId}`);
   const linkInput = document.getElementById(`subLink-${uniqueId}`);
   const fileInput = document.getElementById(`subFile-${uniqueId}`);
@@ -1850,16 +2530,19 @@ async function addNoteModuleWithMedia(branch, sem, subject, uniqueId) {
 
   data.notes[branch][sem][subject][modName] = finalUrl;
   await saveData();
+  await logActivity('ADD', 'notes', `${branch} > ${sem} > ${subject} > ${modName} (${file ? 'PDF' : 'Link'})`);
   buildAdminSection();
 }
 
 async function deleteNoteModule(branch, sem, subject, modName) {
+  if (!(await checkPermissionOrAlert('delete', 'notes', branch, sem))) return;
   const confirmed = await showModal('Delete Module', `Are you sure you want to delete "${modName}" from "${subject}"?`, false);
   if (confirmed) {
     const oldUrl = data.notes[branch][sem][subject][modName];
     await cleanupRtdbPdfIfNeeded(oldUrl);
     delete data.notes[branch][sem][subject][modName];
     await saveData();
+    await logActivity('DELETE', 'notes', `${branch} > ${sem} > ${subject} > ${modName}`);
     buildAdminSection();
   }
 }

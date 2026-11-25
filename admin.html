@@ -60,16 +60,17 @@
       </div>
 
       <div id="admin-content" style="display:none;" class="panel admin-panel admin-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap:wrap; gap:12px;">
-          <div style="display:flex; align-items:center; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <h3 style="margin:0; font-size: 18px;">Dashboard</h3>
+            <span id="roleBadge" class="role-badge">Checking Role...</span>
             <div id="syncBadge" class="sync-badge syncing" title="Realtime Database Status">
               <span class="sync-dot"></span>
               <span id="syncText">Connecting to Realtime DB...</span>
             </div>
           </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn" onclick="seedFirebaseFromLocal()" title="Upload current local data to Firebase Realtime DB" style="padding: 8px 14px; font-size: 13px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn super-only-btn" id="pushRtdbBtn" onclick="seedFirebaseFromLocal()" title="Upload current local data to Firebase Realtime DB" style="padding: 8px 14px; font-size: 13px; display:none;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
               Push to Realtime DB
             </button>
@@ -80,80 +81,226 @@
           </div>
         </div>
 
-        <div class="rules-notice-box" id="firebaseNoticeBox">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <div style="flex:1;">
-            <strong>Realtime Database &amp; PDF Upload Active (Max 100 MB):</strong> 
-            Har subject ya note me aap Drive Link paste kar sakte hain ya 100 MB tak ki PDF file upload kar sakte hain.
-          </div>
+        <!-- Admin Navigation Tabs (Super Admin sees Sub-Admins & Activity Logs tabs too) -->
+        <div class="admin-tabs" id="adminNavTabs">
+          <button class="admin-tab-btn active" data-tab="content" onclick="switchAdminTab('content')">📚 Manage PYQ &amp; Notes</button>
+          <button class="admin-tab-btn super-only-btn" id="tabBtnSubAdmins" data-tab="subadmins" onclick="switchAdminTab('subadmins')" style="display:none;">👥 Sub-Admins &amp; Access</button>
+          <button class="admin-tab-btn super-only-btn" id="tabBtnLogs" data-tab="logs" onclick="switchAdminTab('logs')" style="display:none;">📜 Activity Logs</button>
         </div>
 
-        <!-- Storage & File Size Info Bar -->
-        <div class="storage-stats-grid" id="storageStatsBar">
-          <div class="stat-card">
-            <span class="stat-label">Total Storage Used</span>
-            <span class="stat-value" id="statTotalSize">0.00 MB</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Max Upload Limit (Per File)</span>
-            <span class="stat-value" style="color: var(--primary);">100 MB</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Total PYQs &amp; Notes</span>
-            <span class="stat-value" id="statTotalItems">0</span>
-          </div>
+        <!-- Sub-Admin Current Permissions Banner -->
+        <div class="rules-notice-box" id="subAdminAccessBanner" style="display:none; background: rgba(79,70,229,0.08); border-color: rgba(79,70,229,0.25);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <div style="flex:1;" id="subAdminAccessText">Loading your access permissions...</div>
         </div>
 
-        <!-- Permission Denied Warning Box (shown dynamically if needed) -->
-        <div class="rules-notice-box" id="rtdbRulesWarning" style="display:none; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3); color:#b91c1c;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px; color:#ef4444;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <div style="flex:1;">
-            <strong>⚠️ Firebase Realtime Database Permission Denied:</strong><br>
-            Aapke Firebase Console me Rules abhi locked hain. Isse fix karne ke liye:<br>
-            1. <a href="https://console.firebase.google.com/project/collegepyq-120f7/database" target="_blank" style="color:var(--primary); font-weight:700;">Firebase Console -> Realtime Database -> Rules</a> par jayein.<br>
-            2. Rules me ye paste karke <strong>Publish</strong> button dabayein:
-            <pre style="background:var(--card); padding:8px; border-radius:6px; margin:6px 0; font-size:12px; color:var(--text); overflow-x:auto;">{
+        <!-- Tab 1: Content Manager -->
+        <div id="tab-content" class="admin-tab-pane">
+          <div class="rules-notice-box" id="firebaseNoticeBox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div style="flex:1;">
+              <strong>Realtime Database &amp; PDF Upload Active (Max 100 MB):</strong> 
+              Har subject ya note me aap Drive Link paste kar sakte hain ya 100 MB tak ki PDF file upload kar sakte hain.
+            </div>
+          </div>
+
+          <!-- Storage & File Size Info Bar -->
+          <div class="storage-stats-grid" id="storageStatsBar">
+            <div class="stat-card">
+              <span class="stat-label">Total Storage Used</span>
+              <span class="stat-value" id="statTotalSize">0.00 MB</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Max Upload Limit (Per File)</span>
+              <span class="stat-value" style="color: var(--primary);">100 MB</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Total PYQs &amp; Notes</span>
+              <span class="stat-value" id="statTotalItems">0</span>
+            </div>
+          </div>
+
+          <!-- Permission Denied Warning Box (shown dynamically if needed) -->
+          <div class="rules-notice-box" id="rtdbRulesWarning" style="display:none; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3); color:#b91c1c;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px; color:#ef4444;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div style="flex:1;">
+              <strong>⚠️ Firebase Realtime Database Permission Denied:</strong><br>
+              Aapke Firebase Console me Rules abhi locked hain. Isse fix karne ke liye:<br>
+              1. <a href="https://console.firebase.google.com/project/collegepyq-120f7/database" target="_blank" style="color:var(--primary); font-weight:700;">Firebase Console -> Realtime Database -> Rules</a> par jayein.<br>
+              2. Rules me ye paste karke <strong>Publish</strong> button dabayein:
+              <pre style="background:var(--card); padding:8px; border-radius:6px; margin:6px 0; font-size:12px; color:var(--text); overflow-x:auto;">{
   "rules": {
     ".read": true,
     ".write": true
   }
 }</pre>
+            </div>
+          </div>
+
+          <div class="admin-controls">
+            <div class="row" style="display:flex; gap:12px; margin-bottom:16px;">
+              <select id="section-select" class="input" style="flex:1;" onchange="loadSection()">
+                <option value="jut">JUT PYQ</option>
+                <option value="chaibasa">Chaibasa Engineering College PYQ</option>
+                <option value="notes">Notes (Branch &amp; Semester)</option>
+              </select>
+              <button class="btn primary" onclick="loadSection()">Load Section</button>
+            </div>
+
+            <div class="row super-only-btn" id="importExportRow" style="display:none; gap:12px; align-items:center; margin-bottom:24px; flex-wrap:wrap;">
+              <button class="btn" onclick="exportData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px;vertical-align:text-bottom;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                Export JSON
+              </button>
+              
+              <label class="btn file-wrap" style="display:flex; align-items:center; cursor:pointer;">
+                <input type="file" id="importFile" accept="application/json" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                <span id="file-name" class="file-label">Choose JSON</span>
+              </label>
+              
+              <label class="merge-label" style="display:flex; align-items:center; gap:6px; font-size:14px;">
+                <input type="checkbox" id="mergeImport" style="width:16px; height:16px; accent-color:var(--primary);"> Merge
+              </label>
+              <button class="btn primary" onclick="importData()">Import</button>
+            </div>
+          </div>
+
+          <div id="section-content" class="section-content"></div>
+        </div>
+
+        <!-- Tab 2: Sub-Admins & Access Control (Super Admin Only) -->
+        <div id="tab-subadmins" class="admin-tab-pane" style="display:none;">
+          <div class="subadmin-card">
+            <h4 style="margin-top:0; margin-bottom:14px; font-size:16px;">Create New Sub-Admin (Gmail &amp; Password)</h4>
+            <form id="createSubAdminForm" onsubmit="handleCreateSubAdmin(event)">
+              <div class="perm-form-grid">
+                <div class="input-group">
+                  <label style="font-size:13px;">Full Name</label>
+                  <input type="text" id="newSubAdminName" class="input" placeholder="e.g. Rahul Kumar" required>
+                </div>
+                <div class="input-group">
+                  <label style="font-size:13px;">Gmail / Email Address</label>
+                  <input type="email" id="newSubAdminEmail" class="input" placeholder="rahul@gmail.com" required>
+                </div>
+                <div class="input-group">
+                  <label style="font-size:13px;">Password (Min 6 chars)</label>
+                  <input type="password" id="newSubAdminPassword" class="input" placeholder="••••••" minlength="6" required>
+                </div>
+                <div class="input-group">
+                  <label style="font-size:13px;">Access Level / Type</label>
+                  <select id="newSubAdminAccessType" class="input">
+                    <option value="add_edit">Add &amp; Update Only (No Delete)</option>
+                    <option value="full">Full Access (Add, Update &amp; Delete)</option>
+                    <option value="read_only">View Only (No Changes)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="perm-section-block">
+                <label class="perm-block-title">Allowed Sections:</label>
+                <div class="perm-checkbox-group" id="createPermSections">
+                  <label class="perm-chip"><input type="checkbox" value="jut" checked> JUT PYQ</label>
+                  <label class="perm-chip"><input type="checkbox" value="chaibasa" checked> Chaibasa PYQ</label>
+                  <label class="perm-chip"><input type="checkbox" value="notes" checked> Notes</label>
+                </div>
+              </div>
+
+              <div class="perm-section-block">
+                <label class="perm-block-title">Allowed Branches:</label>
+                <div class="perm-checkbox-group" id="createPermBranches">
+                  <!-- Populated dynamically with All + detected branches -->
+                </div>
+              </div>
+
+              <div class="perm-section-block">
+                <label class="perm-block-title">Allowed Semesters:</label>
+                <div class="perm-checkbox-group" id="createPermSemesters">
+                  <!-- Populated dynamically with All + Semesters 1-8 -->
+                </div>
+              </div>
+
+              <button type="submit" class="btn primary" id="createSubAdminBtn" style="margin-top:8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                Create Sub-Admin Account
+              </button>
+            </form>
+          </div>
+
+          <h4 style="margin:24px 0 12px; font-size:16px;">Active Sub-Admins (Live Real-Time Permissions)</h4>
+          <div id="subAdminsList" class="subadmins-list">
+            <p class="muted">Loading sub-admins...</p>
           </div>
         </div>
 
-        <div class="admin-controls">
-          <div class="row" style="display:flex; gap:12px; margin-bottom:16px;">
-            <select id="section-select" class="input" style="flex:1;" onchange="loadSection()">
-              <option value="jut">JUT PYQ</option>
-              <option value="chaibasa">Chaibasa Engineering College PYQ</option>
-              <option value="notes">Notes (Branch &amp; Semester)</option>
-            </select>
-            <button class="btn primary" onclick="loadSection()">Load Section</button>
+        <!-- Tab 3: Activity Logs (Super Admin Only) -->
+        <div id="tab-logs" class="admin-tab-pane" style="display:none;">
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+            <input type="text" id="logSearchInput" class="input" style="flex:1; min-width:200px;" placeholder="Search by Name, Gmail, Subject or Action..." oninput="renderActivityLogs()">
+            <button class="btn" onclick="clearActivityLogs()" style="color:#ef4444;">Clear Logs</button>
           </div>
-
-          <div class="row" style="display:flex; gap:12px; align-items:center; margin-bottom:24px; flex-wrap:wrap;">
-            <button class="btn" onclick="exportData()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px;vertical-align:text-bottom;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-              Export JSON
-            </button>
-            
-            <label class="btn file-wrap" style="display:flex; align-items:center; cursor:pointer;">
-              <input type="file" id="importFile" accept="application/json" style="display:none;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-              <span id="file-name" class="file-label">Choose JSON</span>
-            </label>
-            
-            <label class="merge-label" style="display:flex; align-items:center; gap:6px; font-size:14px;">
-              <input type="checkbox" id="mergeImport" style="width:16px; height:16px; accent-color:var(--primary);"> Merge
-            </label>
-            <button class="btn primary" onclick="importData()">Import</button>
+          <div id="activityLogsList" class="activity-logs-list">
+            <p class="muted">No activity recorded yet.</p>
           </div>
         </div>
-
-        <div id="section-content" class="section-content"></div>
       </div>
     </div>
   </main>
+
+  <!-- Edit Sub-Admin Access Modal -->
+  <div id="editAccessModal" class="modal-overlay">
+    <div class="modal-card panel" style="max-width: 560px; max-height: 90vh; overflow-y: auto;">
+      <h3 style="margin-top:0; margin-bottom:6px; font-size:18px;">Edit Sub-Admin Access</h3>
+      <p id="editAccessUserLabel" style="margin-top:0; margin-bottom:16px; font-size:13px; color:var(--muted);"></p>
+
+      <div class="perm-form-grid" style="margin-bottom:12px;">
+        <div class="input-group">
+          <label style="font-size:13px;">Name</label>
+          <input type="text" id="editAccessName" class="input">
+        </div>
+        <div class="input-group">
+          <label style="font-size:13px;">Account Status</label>
+          <select id="editAccessActive" class="input">
+            <option value="true">Active (Enabled)</option>
+            <option value="false">Paused (Disabled)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="input-group" style="margin-bottom:12px;">
+        <label style="font-size:13px;">Access Level / Type</label>
+        <select id="editAccessType" class="input">
+          <option value="add_edit">Add &amp; Update Only (No Delete)</option>
+          <option value="full">Full Access (Add, Update &amp; Delete)</option>
+          <option value="read_only">View Only (No Changes)</option>
+        </select>
+      </div>
+
+      <div class="perm-section-block">
+        <label class="perm-block-title">Allowed Sections:</label>
+        <div class="perm-checkbox-group" id="editPermSections">
+          <label class="perm-chip"><input type="checkbox" value="jut"> JUT PYQ</label>
+          <label class="perm-chip"><input type="checkbox" value="chaibasa"> Chaibasa PYQ</label>
+          <label class="perm-chip"><input type="checkbox" value="notes"> Notes</label>
+        </div>
+      </div>
+
+      <div class="perm-section-block">
+        <label class="perm-block-title">Allowed Branches:</label>
+        <div class="perm-checkbox-group" id="editPermBranches"></div>
+      </div>
+
+      <div class="perm-section-block">
+        <label class="perm-block-title">Allowed Semesters:</label>
+        <div class="perm-checkbox-group" id="editPermSemesters"></div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:18px;">
+        <button class="btn" onclick="closeEditAccessModal()">Cancel</button>
+        <button class="btn primary" id="saveAccessModalBtn" onclick="saveSubAdminAccessChanges()">Save &amp; Sync Live</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Dedicated Subject Edit Modal -->
   <div id="subjectModal" class="modal-overlay">
