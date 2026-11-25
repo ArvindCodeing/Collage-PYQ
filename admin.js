@@ -354,13 +354,12 @@ function buildAdminSection() {
                       const link = sectionData[branchName][year][sem][subject] || '#';
                       const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                       const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
-                      const hrefAttr = isDataUrl ? 'javascript:void(0)' : link;
-                      const targetAttr = isDataUrl ? '_self' : '_blank';
+                      const sizeText = isPdf ? getPdfSizeText(link) : '';
                       return `
                       <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
                         <a class="subject" href="javascript:void(0)" onclick="handleAdminSubjectClick(event, '${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" style="margin:0; flex:1;" title="Click to view securely">
                           ${subject}
-                          ${isPdf ? '<span class="badge-pdf">PDF</span>' : '<span class="badge-drive">Link</span>'}
+                          ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                         </a>
                         <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>
                         <button class="btn-icon" onclick="deleteSubject('${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>
@@ -439,7 +438,7 @@ function safeId(str) {
 
 function toggleNode(el) {
   const parent = el.parentElement;
-  const body = parent.querySelector(':scope > .branch-body, :scope > .year-body, :scope > .sem-body');
+  const body = parent.querySelector(':scope > .branch-body, :scope > .year-body, :scope > .sem-body, :scope > .subject-folder-body');
   if (body) body.classList.toggle('active');
   el.classList.toggle('open');
 }
@@ -451,6 +450,22 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function getPdfSizeText(link) {
+  if (typeof link !== 'string') return '';
+  if (link.startsWith('data:application/pdf')) {
+    const base64Part = link.split(',')[1] || '';
+    const bytes = Math.round((base64Part.length * 3) / 4);
+    return formatFileSize(bytes);
+  }
+  if (link.startsWith('rtdb-pdf://')) {
+    const match = link.match(/[?&]size=(\d+)/);
+    if (match && match[1]) {
+      return formatFileSize(parseInt(match[1], 10));
+    }
+  }
+  return '';
 }
 
 // Calculate and display total storage used & item count on Admin Dashboard
@@ -490,12 +505,19 @@ function updateStorageStats() {
     }
   });
 
-  // Scan Notes
+  // Scan Notes (supports both Single PDF/Link & Subject -> Modules)
   const notesObj = data.notes || {};
   for (const branch in notesObj) {
     for (const sem in notesObj[branch]) {
       for (const sub in notesObj[branch][sem]) {
-        processUrl(notesObj[branch][sem][sub]);
+        const val = notesObj[branch][sem][sub];
+        if (val && typeof val === 'object') {
+          for (const mod in val) {
+            processUrl(val[mod]);
+          }
+        } else {
+          processUrl(val);
+        }
       }
     }
   }
@@ -1124,12 +1146,21 @@ async function addSubjectWithMedia(branch, year, sem, uniqueId) {
 // Modal Edit Subject State
 let editSubjectState = null;
 
-function openEditSubjectModal(branch, year, sem, subject) {
-  editSubjectState = { branch, year, sem, oldSubject: subject };
-  const targetObj = (year === null && currentSection === 'notes')
-    ? data.notes[branch][sem]
-    : data[currentSection][branch][year][sem];
-  const currentLink = (targetObj && targetObj[subject]) ? targetObj[subject] : '';
+function openEditSubjectModal(branch, year, sem, subject, moduleName = null) {
+  editSubjectState = { branch, year, sem, oldSubject: subject, moduleName };
+  let targetObj;
+  let itemKey = subject;
+  if (year === null && currentSection === 'notes') {
+    if (moduleName !== null) {
+      targetObj = data.notes[branch][sem][subject];
+      itemKey = moduleName;
+    } else {
+      targetObj = data.notes[branch][sem];
+    }
+  } else {
+    targetObj = data[currentSection][branch][year][sem];
+  }
+  const currentLink = (targetObj && targetObj[itemKey]) ? targetObj[itemKey] : '';
 
   const nameInput = document.getElementById('editSubjectName');
   const linkInput = document.getElementById('editSubjectLink');
@@ -1138,7 +1169,7 @@ function openEditSubjectModal(branch, year, sem, subject) {
   const progressWrap = document.getElementById('editUploadProgressWrap');
   const progressBar = document.getElementById('editUploadProgressBar');
 
-  if (nameInput) nameInput.value = subject;
+  if (nameInput) nameInput.value = itemKey;
   if (linkInput) linkInput.value = (currentLink.startsWith('data:application/pdf') || currentLink.startsWith('rtdb-pdf://')) ? '[Existing PDF File]' : currentLink;
   if (fileInput) fileInput.value = '';
   if (fileLabel) {
@@ -1184,7 +1215,7 @@ function handleModalFileChange(fileInput) {
 
 async function handleSubjectModalSave() {
   if (!editSubjectState) return;
-  const { branch, year, sem, oldSubject } = editSubjectState;
+  const { branch, year, sem, oldSubject, moduleName } = editSubjectState;
 
   const nameInput = document.getElementById('editSubjectName');
   const linkInput = document.getElementById('editSubjectLink');
@@ -1193,14 +1224,23 @@ async function handleSubjectModalSave() {
   const progressWrap = document.getElementById('editUploadProgressWrap');
   const progressBar = document.getElementById('editUploadProgressBar');
 
-  const targetObj = (year === null && currentSection === 'notes')
-    ? data.notes[branch][sem]
-    : data[currentSection][branch][year][sem];
+  let targetObj;
+  let oldKey = oldSubject;
+  if (year === null && currentSection === 'notes') {
+    if (moduleName !== null && moduleName !== undefined) {
+      targetObj = data.notes[branch][sem][oldSubject];
+      oldKey = moduleName;
+    } else {
+      targetObj = data.notes[branch][sem];
+    }
+  } else {
+    targetObj = data[currentSection][branch][year][sem];
+  }
 
   const newSubject = nameInput ? nameInput.value.trim() : '';
   let finalLink = linkInput ? linkInput.value.trim() : '';
   if (finalLink === '[Existing PDF File]') {
-    finalLink = targetObj[oldSubject];
+    finalLink = targetObj[oldKey];
   }
   const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
@@ -1221,7 +1261,7 @@ async function handleSubjectModalSave() {
     if (progressWrap) progressWrap.style.display = 'block';
 
     try {
-      const oldUrl = targetObj[oldSubject];
+      const oldUrl = targetObj[oldKey];
       finalLink = await uploadPdfSmart(
         file,
         (pct) => { if (progressBar) progressBar.style.width = pct + '%'; },
@@ -1244,8 +1284,8 @@ async function handleSubjectModalSave() {
   }
 
   // Update object
-  if (newSubject !== oldSubject) {
-    delete targetObj[oldSubject];
+  if (newSubject !== oldKey) {
+    delete targetObj[oldKey];
   }
   targetObj[newSubject] = finalLink;
 
@@ -1439,14 +1479,81 @@ function buildNotesAdminSection(container) {
             <div class="sem-body">
               <div class="body-inner">
               ${Object.keys(semObj).map(subject => {
-                const link = semObj[subject] || '#';
+                const entry = semObj[subject];
+                if (entry && typeof entry === 'object') {
+                  // Subject Folder containing Modules
+                  const modUniqueId = safeId(`notes-${branchName}-${sem}-${subject}`);
+                  const modKeys = sortSemesters(Object.keys(entry));
+                  return `
+                  <div class="subject-folder">
+                    <div class="subject-folder-head" onclick="toggleNode(this)">
+                      <span class="toggler">${iconToggle}</span>
+                      <span style="font-weight:600;">📁 ${subject}</span>
+                      <span class="module-count-badge">${modKeys.length} Module${modKeys.length === 1 ? '' : 's'}</span>
+                      <div class="action-bar" onclick="event.stopPropagation()">
+                        <button class="btn-icon edit" onclick="editNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Rename Subject" title="Rename Subject">${iconEdit}</button>
+                        <button class="btn-icon" onclick="deleteNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete Subject Folder" title="Delete Subject Folder">${iconDelete}</button>
+                      </div>
+                    </div>
+                    <div class="subject-folder-body">
+                      <div class="body-inner">
+                        ${modKeys.length === 0 ? '<p class="muted" style="font-size:12px; margin:6px 0;">No modules yet. Add Module 1, Module 2 below.</p>' : modKeys.map(modName => {
+                          const link = entry[modName] || '#';
+                          const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
+                          const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
+                          const sizeText = isPdf ? getPdfSizeText(link) : '';
+                          return `
+                          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                            <a class="subject" href="javascript:void(0)" onclick="handleAdminModuleClick(event, '${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" style="margin:0; flex:1;" title="Click to view securely">
+                              ${modName}
+                              ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
+                            </a>
+                            <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" aria-label="Edit Module" title="Edit Module">${iconEdit}</button>
+                            <button class="btn-icon" onclick="deleteNoteModule('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')" aria-label="Delete Module" title="Delete Module">${iconDelete}</button>
+                          </div>
+                          `;
+                        }).join('')}
+
+                        <!-- Add Module Box inside Subject Folder -->
+                        <div class="admin-subject-box">
+                          <div class="box-title">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Add Module to ${subject} (Link or PDF)
+                          </div>
+                          <div class="grid-inputs">
+                            <input type="text" class="input" id="subName-${modUniqueId}" placeholder="Module Name (e.g. Module 1)">
+                            <input type="text" class="input" id="subLink-${modUniqueId}" placeholder="Drive or Web Link">
+                          </div>
+                          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <label class="file-upload-label" style="flex:1;">
+                              <input type="file" id="subFile-${modUniqueId}" accept="application/pdf" style="display:none;" onchange="handleFileSelect('${modUniqueId}', this)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                              <span id="fileLabel-${modUniqueId}">Or Upload PDF File (Max 100 MB)</span>
+                            </label>
+                            <button class="btn primary" id="addBtn-${modUniqueId}" onclick="addNoteModuleWithMedia('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}', '${modUniqueId}')">
+                              ${iconAdd} Add Module
+                            </button>
+                          </div>
+                          <div id="progressWrap-${modUniqueId}" class="upload-progress-wrap">
+                            <div id="progressBar-${modUniqueId}" class="upload-progress-bar"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  `;
+                }
+
+                // Single PDF / Link Subject directly
+                const link = entry || '#';
                 const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                 const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
+                const sizeText = isPdf ? getPdfSizeText(link) : '';
                 return `
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
                   <a class="subject" href="javascript:void(0)" onclick="handleAdminNoteClick(event, '${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" style="margin:0; flex:1;" title="Click to view securely">
                     ${subject}
-                    ${isPdf ? '<span class="badge-pdf">PDF</span>' : '<span class="badge-drive">Link</span>'}
+                    ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                   </a>
                   <button class="btn-icon edit" onclick="openEditSubjectModal('${escapeStr(branchName)}', null, '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Edit" title="Edit">${iconEdit}</button>
                   <button class="btn-icon" onclick="deleteNote('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Delete" title="Delete">${iconDelete}</button>
@@ -1454,24 +1561,30 @@ function buildNotesAdminSection(container) {
               `;
               }).join('')}
 
-              <!-- Add Note Box with Link or PDF -->
+              <!-- Option 1: Create Subject Folder (For Multiple Modules) -->
+              <div class="admin-add-row" style="margin-bottom: 10px;">
+                <input type="text" class="input" id="noteSubFolderInput-${uniqueId}" placeholder="1st Step: Subject Name for Modules (e.g. Mathematics)">
+                <button class="btn primary" onclick="addNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${uniqueId}')">${iconAdd} Add Subject Folder</button>
+              </div>
+
+              <!-- Option 2: Add Single PDF/Link Subject Directly -->
               <div class="admin-subject-box">
                 <div class="box-title">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Add Note (Link or PDF)
+                  Or Add Single PDF / Link Subject Directly
                 </div>
                 <div class="grid-inputs">
-                  <input type="text" class="input" id="subName-${uniqueId}" placeholder="Note / Subject Name">
+                  <input type="text" class="input" id="subName-${uniqueId}" placeholder="Subject Name">
                   <input type="text" class="input" id="subLink-${uniqueId}" placeholder="Drive or Web Link">
                 </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                   <label class="file-upload-label" style="flex:1;">
                     <input type="file" id="subFile-${uniqueId}" accept="application/pdf" style="display:none;" onchange="handleFileSelect('${uniqueId}', this)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span id="fileLabel-${uniqueId}">Or Upload PDF File</span>
+                    <span id="fileLabel-${uniqueId}">Or Upload PDF File (Max 100 MB)</span>
                   </label>
                   <button class="btn primary" id="addBtn-${uniqueId}" onclick="addNoteWithMedia('${escapeStr(branchName)}', '${escapeStr(sem)}', '${uniqueId}')">
-                    ${iconAdd} Add Note
+                    ${iconAdd} Add Single Subject
                   </button>
                 </div>
                 <div id="progressWrap-${uniqueId}" class="upload-progress-wrap">
@@ -1610,7 +1723,142 @@ async function editNoteSemester(branch, oldSem) {
 async function deleteNoteSemester(branch, sem) {
   const confirmed = await showModal('Delete Semester', `Are you sure you want to delete semester ${sem} and all its notes?`, false);
   if (confirmed) {
+    const semObj = data.notes[branch][sem] || {};
+    for (const sub in semObj) {
+      if (semObj[sub] && typeof semObj[sub] === 'object') {
+        for (const mod in semObj[sub]) {
+          await cleanupRtdbPdfIfNeeded(semObj[sub][mod]);
+        }
+      } else {
+        await cleanupRtdbPdfIfNeeded(semObj[sub]);
+      }
+    }
     delete data.notes[branch][sem];
+    await saveData();
+    buildAdminSection();
+  }
+}
+
+// Subject Folder & Module CRUD for Notes
+async function addNoteSubjectFolder(branch, sem, uniqueId) {
+  const input = document.getElementById(`noteSubFolderInput-${uniqueId}`);
+  const subjectName = input ? input.value.trim() : '';
+  if (!subjectName) {
+    await showModal('Missing Info', 'Please enter a Subject Name.', false);
+    return;
+  }
+  if (!data.notes[branch][sem]) data.notes[branch][sem] = {};
+  if (data.notes[branch][sem][subjectName]) {
+    await showModal('Already Exists', `Subject "${subjectName}" already exists in this semester.`, false);
+    return;
+  }
+  data.notes[branch][sem][subjectName] = {};
+  if (input) input.value = '';
+  await saveData();
+  buildAdminSection();
+}
+
+async function editNoteSubjectFolder(branch, sem, oldSubject) {
+  const newSubject = await showModal('Rename Subject', 'Enter new Subject Name:', true, oldSubject);
+  if (newSubject && newSubject.trim() !== '' && newSubject.trim() !== oldSubject) {
+    const trimmed = newSubject.trim();
+    if (data.notes[branch][sem][trimmed]) {
+      await showModal('Already Exists', `Subject "${trimmed}" already exists.`, false);
+      return;
+    }
+    data.notes[branch][sem][trimmed] = data.notes[branch][sem][oldSubject];
+    delete data.notes[branch][sem][oldSubject];
+    await saveData();
+    buildAdminSection();
+  }
+}
+
+async function deleteNoteSubjectFolder(branch, sem, subject) {
+  const confirmed = await showModal('Delete Subject Folder', `Are you sure you want to delete "${subject}" and all its modules?`, false);
+  if (confirmed) {
+    const folderObj = data.notes[branch][sem][subject] || {};
+    for (const mod in folderObj) {
+      await cleanupRtdbPdfIfNeeded(folderObj[mod]);
+    }
+    delete data.notes[branch][sem][subject];
+    await saveData();
+    buildAdminSection();
+  }
+}
+
+function handleAdminModuleClick(event, branch, sem, subject, modName) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const link = (data && data.notes && data.notes[branch] && data.notes[branch][sem] && data.notes[branch][sem][subject])
+    ? data.notes[branch][sem][subject][modName]
+    : null;
+  if (!link || link === '#') return;
+  openPdfViewer(`${subject} - ${modName}`, link);
+}
+
+async function addNoteModuleWithMedia(branch, sem, subject, uniqueId) {
+  const nameInput = document.getElementById(`subName-${uniqueId}`);
+  const linkInput = document.getElementById(`subLink-${uniqueId}`);
+  const fileInput = document.getElementById(`subFile-${uniqueId}`);
+  const addBtn = document.getElementById(`addBtn-${uniqueId}`);
+  const progressWrap = document.getElementById(`progressWrap-${uniqueId}`);
+  const progressBar = document.getElementById(`progressBar-${uniqueId}`);
+
+  const modName = nameInput ? nameInput.value.trim() : '';
+  const link = linkInput ? linkInput.value.trim() : '';
+  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+  if (!modName) {
+    await showModal('Missing Info', 'Please enter a Module Name (e.g. Module 1).', false);
+    return;
+  }
+  if (!link && !file) {
+    await showModal('Missing Media', 'Please provide either a Drive/Web Link OR choose a PDF file to upload.', false);
+    return;
+  }
+  if (data.notes[branch][sem][subject][modName]) {
+    await showModal('Already Exists', `Module "${modName}" already exists in "${subject}".`, false);
+    return;
+  }
+
+  let finalUrl = link;
+  if (file) {
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      await showModal('PDF Size Limit', `File size (${formatFileSize(file.size)}) 100 MB se badi hai. Maximum 100 MB tak ki PDF upload kar sakte hain.`, false);
+      return;
+    }
+    addBtn.disabled = true;
+    addBtn.textContent = 'Uploading...';
+    if (progressWrap) progressWrap.style.display = 'block';
+    try {
+      finalUrl = await uploadPdfSmart(
+        file,
+        (pct) => { if (progressBar) progressBar.style.width = pct + '%'; },
+        (statusText) => { addBtn.textContent = statusText; }
+      );
+      if (progressBar) progressBar.style.width = '100%';
+    } catch (readErr) {
+      addBtn.disabled = false;
+      addBtn.innerHTML = `${iconAdd} Add Module`;
+      if (progressWrap) progressWrap.style.display = 'none';
+      await showModal('Upload Error', 'Failed to upload PDF file: ' + readErr.message, false);
+      return;
+    }
+  }
+
+  data.notes[branch][sem][subject][modName] = finalUrl;
+  await saveData();
+  buildAdminSection();
+}
+
+async function deleteNoteModule(branch, sem, subject, modName) {
+  const confirmed = await showModal('Delete Module', `Are you sure you want to delete "${modName}" from "${subject}"?`, false);
+  if (confirmed) {
+    const oldUrl = data.notes[branch][sem][subject][modName];
+    await cleanupRtdbPdfIfNeeded(oldUrl);
+    delete data.notes[branch][sem][subject][modName];
     await saveData();
     buildAdminSection();
   }
