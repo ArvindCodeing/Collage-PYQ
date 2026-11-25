@@ -21,6 +21,34 @@ const iconDelete = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const iconAdd = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>`;
 const iconToggle = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
 
+function cleanKeys(obj) {
+  if (!obj || typeof obj !== 'object') return [];
+  return Object.keys(obj).filter(k => k !== '_init');
+}
+
+function ensureNotesBranches() {
+  if (!data) data = {};
+  if (!data.notes || typeof data.notes !== 'object') {
+    data.notes = {};
+  }
+  const branchSet = new Set(['CSE', 'ECE', 'EE', 'ME', 'CE']);
+  ['jut', 'chaibasa'].forEach(sec => {
+    if (data[sec] && typeof data[sec] === 'object') {
+      cleanKeys(data[sec]).forEach(b => branchSet.add(b));
+    }
+  });
+  if (currentSubAdminProfile && Array.isArray(currentSubAdminProfile.branches)) {
+    currentSubAdminProfile.branches.forEach(b => {
+      if (b && b !== 'ALL') branchSet.add(b);
+    });
+  }
+  branchSet.forEach(b => {
+    if (!data.notes[b] || typeof data.notes[b] !== 'object') {
+      data.notes[b] = { _init: true };
+    }
+  });
+}
+
 function emailToKey(email) {
   return (email || '').trim().toLowerCase().replace(/\./g, '_dot_').replace(/[@#$[\]/]/g, '_');
 }
@@ -118,7 +146,7 @@ function applyRoleUI() {
 
   if (isSuperAdmin) {
     if (roleBadge) {
-      roleBadge.textContent = '👑 Main Super Admin';
+      roleBadge.textContent = 'Main Super Admin';
       roleBadge.className = 'role-badge super';
     }
     superBtns.forEach(el => {
@@ -135,7 +163,7 @@ function applyRoleUI() {
 
     if (!currentSubAdminProfile) {
       if (roleBadge) {
-        roleBadge.textContent = '⛔ No Access Assigned';
+        roleBadge.textContent = 'No Access Assigned';
         roleBadge.className = 'role-badge';
       }
       if (accessBanner && accessText) {
@@ -153,14 +181,14 @@ function applyRoleUI() {
         : 'Add & Update Only (No Delete)';
 
     if (roleBadge) {
-      roleBadge.textContent = active ? `👤 ${currentSubAdminProfile.name || 'Sub-Admin'}` : '⛔ Account Paused';
+      roleBadge.textContent = active ? `${currentSubAdminProfile.name || 'Sub-Admin'}` : 'Account Paused';
       roleBadge.className = 'role-badge';
     }
 
     if (accessBanner && accessText) {
       accessBanner.style.display = 'flex';
       if (!active) {
-        accessText.innerHTML = `<strong>⛔ Account Paused:</strong> Main Admin ne aapka access abhi pause kar diya hai.`;
+        accessText.innerHTML = `<strong>Account Paused:</strong> Main Admin ne aapka access abhi pause kar diya hai.`;
       } else {
         const secs = (currentSubAdminProfile.sections || []).map(s => s.toUpperCase()).join(', ') || 'None';
         const brs = (currentSubAdminProfile.branches || ['ALL']).join(', ');
@@ -170,6 +198,7 @@ function applyRoleUI() {
     }
 
     syncSectionSelectOptions(currentSubAdminProfile.sections || []);
+    buildAdminSection();
   }
 }
 
@@ -226,7 +255,7 @@ function canAccessBranch(branch) {
   if (isSuperAdmin) return true;
   if (!currentSubAdminProfile || currentSubAdminProfile.active === false) return false;
   const brs = currentSubAdminProfile.branches || [];
-  return brs.includes('ALL') || brs.some(b => b.toLowerCase() === (branch || '').toLowerCase());
+  return brs.includes('ALL') || brs.some(b => (b || '').trim().toLowerCase() === (branch || '').trim().toLowerCase());
 }
 
 function canAccessSemester(sem) {
@@ -306,7 +335,7 @@ function getAllKnownBranches() {
   if (data) {
     ['jut', 'chaibasa', 'notes'].forEach(sec => {
       if (data[sec] && typeof data[sec] === 'object') {
-        Object.keys(data[sec]).forEach(b => set.add(b));
+        cleanKeys(data[sec]).forEach(b => set.add(b));
       }
     });
   }
@@ -320,17 +349,17 @@ function getAllKnownSemesters() {
   if (data) {
     ['jut', 'chaibasa'].forEach(sec => {
       const secObj = data[sec] || {};
-      for (const b in secObj) {
-        for (const y in secObj[b]) {
-          for (const s in secObj[b][y]) {
+      for (const b of cleanKeys(secObj)) {
+        for (const y of cleanKeys(secObj[b])) {
+          for (const s of cleanKeys(secObj[b][y])) {
             if (!map.has(s.toLowerCase())) map.set(s.toLowerCase(), s);
           }
         }
       }
     });
     if (data.notes) {
-      for (const b in data.notes) {
-        for (const s in data.notes[b]) {
+      for (const b of cleanKeys(data.notes)) {
+        for (const s of cleanKeys(data.notes[b])) {
           if (!map.has(s.toLowerCase())) map.set(s.toLowerCase(), s);
         }
       }
@@ -468,12 +497,12 @@ function renderSubAdminsList() {
     const active = sa.active !== false;
     const typeClass = !active ? 'paused' : (sa.accessType === 'full' ? 'full' : 'nodelete');
     const typeLabel = !active
-      ? '⏸️ Paused'
+      ? 'Paused'
       : sa.accessType === 'full'
-        ? '✅ Full Access (Add, Edit & Delete)'
+        ? 'Full Access (Add, Edit & Delete)'
         : sa.accessType === 'read_only'
-          ? '👁️ View Only'
-          : '✏️ Add & Update Only (No Delete)';
+          ? 'View Only'
+          : 'Add & Update Only (No Delete)';
     const secs = (sa.sections || []).map(s => s.toUpperCase()).join(', ') || 'None';
     const brs = (sa.branches || ['ALL']).join(', ');
     const sems = (sa.semesters || ['ALL']).join(', ');
@@ -887,7 +916,7 @@ function buildAdminSection() {
   container.innerHTML = '';
 
   if (currentUser && !isSuperAdmin && !canAccessSection(currentSection)) {
-    container.innerHTML = `<p class="muted" style="text-align:center; padding:32px;">⛔ Aapko is section (<strong>${currentSection.toUpperCase()}</strong>) ka access nahi diya gaya hai.</p>`;
+    container.innerHTML = `<p class="muted" style="text-align:center; padding:32px;">Aapko is section (<strong>${currentSection.toUpperCase()}</strong>) ka access nahi diya gaya hai.</p>`;
     return;
   }
 
@@ -895,10 +924,7 @@ function buildAdminSection() {
   const allowDelete = canDelete();
 
   if (currentSection === 'notes') {
-    if (!data) data = {};
-    if (!data.notes) {
-      data.notes = { CSE: {}, ECE: {}, EE: {}, ME: {}, CE: {} };
-    }
+    ensureNotesBranches();
     buildNotesAdminSection(container);
     return;
   }
@@ -910,7 +936,7 @@ function buildAdminSection() {
 
   const sectionData = data[currentSection];
   let visibleBranchCount = 0;
-  for (const branchName in sectionData) {
+  for (const branchName of cleanKeys(sectionData)) {
     if (!canAccessBranch(branchName)) continue;
     visibleBranchCount++;
 
@@ -925,7 +951,7 @@ function buildAdminSection() {
       </div>
       <div class="branch-body">
         <div class="body-inner">
-        ${Object.keys(sectionData[branchName]).sort((a, b) => b - a).map(year => `
+        ${cleanKeys(sectionData[branchName]).sort((a, b) => b - a).map(year => `
           <div class="year">
             <div class="year-head" onclick="toggleNode(this)">
               <span class="toggler">${iconToggle}</span> ${year}
@@ -936,7 +962,7 @@ function buildAdminSection() {
             </div>
             <div class="year-body">
               <div class="body-inner">
-              ${sortSemesters(Object.keys(sectionData[branchName][year])).filter(sem => canAccessSemester(sem)).map(sem => {
+              ${sortSemesters(cleanKeys(sectionData[branchName][year])).filter(sem => canAccessSemester(sem)).map(sem => {
                 const uniqueId = safeId(`${branchName}-${year}-${sem}`);
                 return `
                 <div class="semester">
@@ -949,7 +975,7 @@ function buildAdminSection() {
                   </div>
                   <div class="sem-body">
                     <div class="body-inner">
-                    ${Object.keys(sectionData[branchName][year][sem]).map(subject => {
+                    ${cleanKeys(sectionData[branchName][year][sem]).map(subject => {
                       const link = sectionData[branchName][year][sem][subject] || '#';
                       const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                       const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
@@ -1105,10 +1131,10 @@ function updateStorageStats() {
   // Scan JUT & Chaibasa
   ['jut', 'chaibasa'].forEach(sec => {
     const secObj = data[sec] || {};
-    for (const branch in secObj) {
-      for (const year in secObj[branch]) {
-        for (const sem in secObj[branch][year]) {
-          for (const sub in secObj[branch][year][sem]) {
+    for (const branch of cleanKeys(secObj)) {
+      for (const year of cleanKeys(secObj[branch])) {
+        for (const sem of cleanKeys(secObj[branch][year])) {
+          for (const sub of cleanKeys(secObj[branch][year][sem])) {
             processUrl(secObj[branch][year][sem][sub]);
           }
         }
@@ -1118,12 +1144,12 @@ function updateStorageStats() {
 
   // Scan Notes (supports both Single PDF/Link & Subject -> Modules)
   const notesObj = data.notes || {};
-  for (const branch in notesObj) {
-    for (const sem in notesObj[branch]) {
-      for (const sub in notesObj[branch][sem]) {
+  for (const branch of cleanKeys(notesObj)) {
+    for (const sem of cleanKeys(notesObj[branch])) {
+      for (const sub of cleanKeys(notesObj[branch][sem])) {
         const val = notesObj[branch][sem][sub];
         if (val && typeof val === 'object') {
-          for (const mod in val) {
+          for (const mod of cleanKeys(val)) {
             processUrl(val[mod]);
           }
         } else {
@@ -1942,7 +1968,7 @@ async function addNewBranch() {
     await showModal('Error', `Branch "${branch}" already exists.`, false);
     return;
   }
-  data[currentSection][branch] = {};
+  data[currentSection][branch] = { _init: true };
   if (input) input.value = '';
   await saveData();
   await logActivity('ADD', currentSection, `Added Branch: ${branch}`);
@@ -1966,7 +1992,7 @@ async function addYear(branch) {
   const input = document.getElementById('yearInput-' + safeId(branch));
   const year = input ? input.value.trim() : '';
   if (year && !data[currentSection][branch][year]) {
-    data[currentSection][branch][year] = {};
+    data[currentSection][branch][year] = { _init: true };
     input.value = '';
     await saveData();
     await logActivity('ADD', currentSection, `${branch} > Added Year: ${year}`);
@@ -2005,7 +2031,7 @@ async function addSemester(branch, year) {
   const input = document.getElementById('semInput-' + safeId(`${branch}-${year}`));
   const sem = input ? input.value.trim() : '';
   if (sem && !data[currentSection][branch][year][sem]) {
-    data[currentSection][branch][year][sem] = {};
+    data[currentSection][branch][year][sem] = { _init: true };
     input.value = '';
     await saveData();
     await logActivity('ADD', currentSection, `${branch} > ${year} > Added Semester: ${sem}`);
@@ -2094,12 +2120,13 @@ async function importData() {
 // ============================================
 
 function buildNotesAdminSection(container) {
+  ensureNotesBranches();
   const notesData = data.notes || {};
   const allowEdit = canAddOrEdit();
   const allowDelete = canDelete();
   let visibleBranchCount = 0;
 
-  for (const branchName in notesData) {
+  for (const branchName of cleanKeys(notesData)) {
     if (!canAccessBranch(branchName)) continue;
     visibleBranchCount++;
 
@@ -2115,7 +2142,7 @@ function buildNotesAdminSection(container) {
       </div>
       <div class="branch-body">
         <div class="body-inner">
-        ${sortSemesters(Object.keys(branchObj)).filter(sem => canAccessSemester(sem)).map(sem => {
+        ${sortSemesters(cleanKeys(branchObj)).filter(sem => canAccessSemester(sem)).map(sem => {
           const uniqueId = safeId(`notes-${branchName}-${sem}`);
           const semObj = branchObj[sem] || {};
           return `
@@ -2129,17 +2156,18 @@ function buildNotesAdminSection(container) {
             </div>
             <div class="sem-body">
               <div class="body-inner">
-              ${Object.keys(semObj).map(subject => {
+              ${cleanKeys(semObj).map(subject => {
                 const entry = semObj[subject];
                 if (entry && typeof entry === 'object') {
                   // Subject Folder containing Modules
                   const modUniqueId = safeId(`notes-${branchName}-${sem}-${subject}`);
-                  const modKeys = sortSemesters(Object.keys(entry));
+                  const modKeys = sortSemesters(cleanKeys(entry));
                   return `
                   <div class="subject-folder">
                     <div class="subject-folder-head" onclick="toggleNode(this)">
                       <span class="toggler">${iconToggle}</span>
-                      <span style="font-weight:600;">📁 ${subject}</span>
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--primary);flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                      <span style="font-weight:600;">${subject}</span>
                       <span class="module-count-badge">${modKeys.length} Module${modKeys.length === 1 ? '' : 's'}</span>
                       <div class="action-bar" onclick="event.stopPropagation()">
                         ${allowEdit ? `<button class="btn-icon edit" onclick="editNoteSubjectFolder('${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')" aria-label="Rename Subject" title="Rename Subject">${iconEdit}</button>` : ''}
@@ -2369,7 +2397,7 @@ async function addNoteSemester(branch) {
   const input = document.getElementById('noteSemInput-' + safeId(branch));
   const sem = input ? input.value.trim() : '';
   if (sem && !data.notes[branch][sem]) {
-    data.notes[branch][sem] = {};
+    data.notes[branch][sem] = { _init: true };
     input.value = '';
     await saveData();
     await logActivity('ADD', 'notes', `${branch} > Added Semester: ${sem}`);
@@ -2421,12 +2449,12 @@ async function addNoteSubjectFolder(branch, sem, uniqueId) {
     await showModal('Missing Info', 'Please enter a Subject Name.', false);
     return;
   }
-  if (!data.notes[branch][sem]) data.notes[branch][sem] = {};
+  if (!data.notes[branch][sem]) data.notes[branch][sem] = { _init: true };
   if (data.notes[branch][sem][subjectName]) {
     await showModal('Already Exists', `Subject "${subjectName}" already exists in this semester.`, false);
     return;
   }
-  data.notes[branch][sem][subjectName] = {};
+  data.notes[branch][sem][subjectName] = { _init: true };
   if (input) input.value = '';
   await saveData();
   await logActivity('ADD', 'notes', `${branch} > ${sem} > Created Subject Folder: ${subjectName}`);
