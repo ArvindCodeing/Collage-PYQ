@@ -713,7 +713,44 @@ function handleNoteClick(event, branch, sem, subject) {
   openPdfViewer(subject + ' (Notes)', link);
 }
 
-// Build Notes section: Branch -> Semester -> Notes
+// Format PDF size for display next to uploaded PDFs
+function formatPdfSize(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function getPdfSizeText(link) {
+  if (typeof link !== 'string') return '';
+  if (link.startsWith('data:application/pdf')) {
+    const base64Part = link.split(',')[1] || '';
+    const bytes = Math.round((base64Part.length * 3) / 4);
+    return formatPdfSize(bytes);
+  }
+  if (link.startsWith('rtdb-pdf://')) {
+    const match = link.match(/[?&]size=(\d+)/);
+    if (match && match[1]) {
+      return formatPdfSize(parseInt(match[1], 10));
+    }
+  }
+  return '';
+}
+
+// Handle clicking a Note Module inside a Subject Folder
+function handleNoteModuleClick(event, branch, sem, subject, modName) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const link = (data && data.notes && data.notes[branch] && data.notes[branch][sem] && data.notes[branch][sem][subject])
+    ? data.notes[branch][sem][subject][modName]
+    : null;
+  if (!link || link === '#') return;
+  openPdfViewer(`${subject} - ${modName}`, link);
+}
+
+// Build Notes section: Branch -> Semester -> Subject (Modules Folder or Single PDF/Link)
 function buildNotesSection(containerId, notesSection) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -750,13 +787,43 @@ function buildNotesSection(containerId, notesSection) {
               <div class="sem-body">
                 <div class="body-inner">
                 ${subjectKeys.length === 0 ? '<p class="muted" style="font-size:13px; padding:4px 0;">No notes added yet.</p>' : subjectKeys.map(subject => {
-                  const link = subjectsObj[subject] || '#';
+                  const entry = subjectsObj[subject];
+                  if (entry && typeof entry === 'object') {
+                    const modKeys = sortSemesters(Object.keys(entry));
+                    return `
+                      <div class="subject-folder" data-name="${subject}">
+                        <div class="subject-folder-head" onclick="toggleNode(this)">
+                          <span class="toggler"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+                          <span>📁 ${subject}</span>
+                          <span class="module-count-badge">${modKeys.length} Module${modKeys.length === 1 ? '' : 's'}</span>
+                        </div>
+                        <div class="subject-folder-body">
+                          <div class="body-inner">
+                          ${modKeys.length === 0 ? '<p class="muted" style="font-size:12px; padding:4px 0;">Modules coming soon.</p>' : modKeys.map(modName => {
+                            const modLink = entry[modName] || '#';
+                            const isDataUrl = typeof modLink === 'string' && (modLink.startsWith('data:application/pdf') || modLink.startsWith('rtdb-pdf://'));
+                            const isPdf = isDataUrl || (typeof modLink === 'string' && (modLink.includes('.pdf') || modLink.includes('firebasestorage.googleapis.com') || modLink.toLowerCase().includes('alt=media')));
+                            const sizeText = isPdf ? getPdfSizeText(modLink) : '';
+                            return `
+                              <a class="subject" href="javascript:void(0)" data-name="${modName}" onclick="handleNoteModuleClick(event, '${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}', '${escapeStr(modName)}')">
+                                ${modName}
+                                ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
+                              </a>
+                            `;
+                          }).join('')}
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }
+                  const link = entry || '#';
                   const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                   const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
+                  const sizeText = isPdf ? getPdfSizeText(link) : '';
                   return `
                     <a class="subject" href="javascript:void(0)" data-name="${subject}" onclick="handleNoteClick(event, '${escapeStr(branchName)}', '${escapeStr(sem)}', '${escapeStr(subject)}')">
                       ${subject}
-                      ${isPdf ? '<span class="badge-pdf">PDF</span>' : '<span class="badge-drive">Link</span>'}
+                      ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                     </a>
                   `;
                 }).join('')}
@@ -808,10 +875,11 @@ function buildSection(containerId, section) {
                       const link = section[branchName][year][sem][subject] || '#';
                       const isDataUrl = typeof link === 'string' && (link.startsWith('data:application/pdf') || link.startsWith('rtdb-pdf://'));
                       const isPdf = isDataUrl || (typeof link === 'string' && (link.includes('.pdf') || link.includes('firebasestorage.googleapis.com') || link.toLowerCase().includes('alt=media')));
+                      const sizeText = isPdf ? getPdfSizeText(link) : '';
                       return `
                         <a class="subject" href="javascript:void(0)" data-name="${subject}" onclick="handleSubjectClick(event, '${escapeStr(branchName)}', '${escapeStr(year)}', '${escapeStr(sem)}', '${escapeStr(subject)}')">
                           ${subject}
-                          ${isPdf ? '<span class="badge-pdf">PDF</span>' : '<span class="badge-drive">Link</span>'}
+                          ${isPdf ? `<span class="badge-pdf">PDF</span>${sizeText ? `<span class="badge-size">${sizeText}</span>` : ''}` : '<span class="badge-drive">Link</span>'}
                         </a>
                       `;
                     }).join('')}
@@ -832,10 +900,10 @@ function buildSection(containerId, section) {
 
 // Toggle display for branch/year/semester nodes
 function toggleNode(el){
-  // el is the clicked head element (branch-head, year-head, sem-head)
+  // el is the clicked head element (branch-head, year-head, sem-head, subject-folder-head)
   const parent = el.parentElement;
-  // find the immediate body (branch-body, year-body, sem-body)
-  const body = parent.querySelector(':scope > .branch-body, :scope > .year-body, :scope > .sem-body');
+  // find the immediate body (branch-body, year-body, sem-body, subject-folder-body)
+  const body = parent.querySelector(':scope > .branch-body, :scope > .year-body, :scope > .sem-body, :scope > .subject-folder-body');
   if(body) body.classList.toggle('active');
   el.classList.toggle('open');
   // prevent event bubbling if used as onclick on nested elements
