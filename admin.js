@@ -26,12 +26,15 @@ function cleanKeys(obj) {
   return Object.keys(obj).filter(k => k !== '_init');
 }
 
+let notesBranchSyncInProgress = false;
+
 function ensureNotesBranches() {
   if (!data) data = {};
   if (!data.notes || typeof data.notes !== 'object') {
     data.notes = {};
   }
-  const branchSet = new Set(['CSE', 'ECE', 'EE', 'ME', 'CE']);
+  let changed = false;
+  const branchSet = new Set(['CSE', 'ECE', 'EE', 'ME', 'Civil']);
   ['jut', 'chaibasa'].forEach(sec => {
     if (data[sec] && typeof data[sec] === 'object') {
       cleanKeys(data[sec]).forEach(b => branchSet.add(b));
@@ -42,11 +45,35 @@ function ensureNotesBranches() {
       if (b && b !== 'ALL') branchSet.add(b);
     });
   }
+  // Remove accidental empty 'CE' placeholder if it has no semesters/notes
+  if (data.notes.CE && typeof data.notes.CE === 'object' && cleanKeys(data.notes.CE).length === 0) {
+    delete data.notes.CE;
+    changed = true;
+  }
   branchSet.forEach(b => {
     if (!data.notes[b] || typeof data.notes[b] !== 'object') {
       data.notes[b] = { _init: true };
+      changed = true;
     }
   });
+  return changed;
+}
+
+async function syncNotesBranchesIfNeeded() {
+  if (notesBranchSyncInProgress || !currentUser) return;
+  if (!isSuperAdmin && !canAddOrEdit()) return;
+  const changed = ensureNotesBranches();
+  if (changed && window.firebase && firebase.database) {
+    notesBranchSyncInProgress = true;
+    try {
+      try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
+      await firebase.database().ref('pyqData/notes').set(data.notes);
+    } catch (e) {
+      console.warn('Notes branch sync notice:', e);
+    } finally {
+      notesBranchSyncInProgress = false;
+    }
+  }
 }
 
 function emailToKey(email) {
@@ -156,6 +183,7 @@ function applyRoleUI() {
     if (accessBanner) accessBanner.style.display = 'none';
     syncSectionSelectOptions(null);
     populatePermissionCheckboxes('create');
+    syncNotesBranchesIfNeeded();
   } else {
     superBtns.forEach(el => { el.style.display = 'none'; });
     if (importExportRow) importExportRow.style.display = 'none';
@@ -331,11 +359,14 @@ async function logActivity(action, section, targetDetails) {
 
 // Gather all known branches across PYQs and Notes for permission checkboxes
 function getAllKnownBranches() {
-  const set = new Set(['CSE', 'ECE', 'EE', 'ME', 'CE']);
+  const set = new Set(['CSE', 'ECE', 'EE', 'ME', 'Civil']);
   if (data) {
     ['jut', 'chaibasa', 'notes'].forEach(sec => {
       if (data[sec] && typeof data[sec] === 'object') {
-        cleanKeys(data[sec]).forEach(b => set.add(b));
+        cleanKeys(data[sec]).forEach(b => {
+          if (sec === 'notes' && b === 'CE' && cleanKeys(data.notes[b]).length === 0) return;
+          set.add(b);
+        });
       }
     });
   }
@@ -377,7 +408,7 @@ function populatePermissionCheckboxes(prefix, selectedBranches = ['ALL'], select
     const isAllBr = selectedBranches.includes('ALL');
     brContainer.innerHTML = `
       <label class="perm-chip"><input type="checkbox" value="ALL" ${isAllBr ? 'checked' : ''} onchange="toggleAllChip(this, '${prefix}PermBranches')"> All Branches</label>
-      ${branches.map(b => `<label class="perm-chip"><input type="checkbox" value="${b}" ${!isAllBr && selectedBranches.includes(b) ? 'checked' : ''} onchange="uncheckAllChip('${prefix}PermBranches')"> ${b}</label>`).join('')}
+      ${branches.map(b => `<label class="perm-chip"><input type="checkbox" value="${b}" ${!isAllBr && selectedBranches.some(x => (x || '').trim().toLowerCase() === b.toLowerCase()) ? 'checked' : ''} onchange="uncheckAllChip('${prefix}PermBranches')"> ${b}</label>`).join('')}
     `;
   }
 
@@ -689,6 +720,10 @@ function setupRealtimeListener() {
         data = val;
         try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
         buildAdminSection();
+        if (isSuperAdmin) {
+          populatePermissionCheckboxes('create');
+          syncNotesBranchesIfNeeded();
+        }
         updateSyncStatus('connected', 'Live in Realtime DB');
       } else if (val === null) {
         updateSyncStatus('syncing', 'Realtime DB Empty (Click Push)');
@@ -1057,7 +1092,7 @@ function buildAdminSection() {
     newBranchRow.style.marginTop = '24px';
     newBranchRow.style.paddingTop = '16px';
     newBranchRow.innerHTML = `
-      <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
+      <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, Civil)">
       <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
     `;
     container.appendChild(newBranchRow);
@@ -1961,17 +1996,19 @@ async function addNewBranch() {
     return;
   }
   const input = document.getElementById('newBranchInput');
-  const branch = input ? input.value.trim().toUpperCase() : '';
+  const branch = input ? input.value.trim() : '';
   if (!branch) return;
   if (!data[currentSection]) data[currentSection] = {};
-  if (data[currentSection][branch]) {
-    await showModal('Error', `Branch "${branch}" already exists.`, false);
+  const existing = Object.keys(data[currentSection]).find(b => b.toLowerCase() === branch.toLowerCase());
+  if (existing) {
+    await showModal('Error', `Branch "${existing}" already exists.`, false);
     return;
   }
   data[currentSection][branch] = { _init: true };
   if (input) input.value = '';
   await saveData();
   await logActivity('ADD', currentSection, `Added Branch: ${branch}`);
+  populatePermissionCheckboxes('create');
   buildAdminSection();
 }
 
@@ -2303,7 +2340,7 @@ function buildNotesAdminSection(container) {
     newBranchRow.style.marginTop = '24px';
     newBranchRow.style.paddingTop = '16px';
     newBranchRow.innerHTML = `
-      <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, CE)">
+      <input type="text" class="input" id="newBranchInput" placeholder="Add new Branch (e.g. CSE, ECE, ME, Civil)">
       <button class="btn primary" onclick="addNewBranch()">${iconAdd} Add Branch</button>
     `;
     container.appendChild(newBranchRow);
