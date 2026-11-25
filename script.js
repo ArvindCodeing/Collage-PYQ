@@ -229,9 +229,19 @@ function applyThemeOnLoad(){
 
 function initData() {
   return new Promise((resolve) => {
-    // Fetch the project JSON with a cache-busting query param so the browser
-    // doesn't serve a stale cached copy. If fetch fails, fall back to
-    // localStorage (previous admin edits) or the empty default.
+    // Use cached RTDB data immediately if available so Notes don't flash empty
+    const stored = localStorage.getItem('pyqData');
+    let cached = null;
+    if (stored) {
+      try { cached = JSON.parse(stored); } catch (e) { cached = null; }
+    }
+    if (cached && typeof cached === 'object' && Object.keys(cached).length > 0) {
+      data = cached;
+      resolve();
+      return;
+    }
+
+    // Fallback to project JSON with cache-busting query param
     const url = 'pyq-data.json?_=' + Date.now();
     fetch(url).then(r => {
       if (!r.ok) throw new Error('no-file');
@@ -240,21 +250,57 @@ function initData() {
       data = json;
       try { localStorage.setItem('pyqData', JSON.stringify(data)); } catch (e) {}
     }).catch(() => {
-      const stored = localStorage.getItem('pyqData');
-      if (stored) {
-        try { data = JSON.parse(stored); } catch (e) { data = defaultData; }
-      } else {
-        data = defaultData;
-      }
+      data = defaultData;
     }).finally(() => resolve());
+  });
+}
+
+// Capture & restore open accordion paths so realtime updates don't collapse user's view
+function captureOpenPaths(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  const paths = [];
+  container.querySelectorAll('.open').forEach(el => {
+    const parts = [];
+    let cur = el;
+    while (cur && cur !== container) {
+      if (cur.dataset && cur.dataset.name) parts.unshift(cur.dataset.name);
+      cur = cur.parentElement;
+    }
+    if (parts.length > 0) paths.push(parts.join(' > '));
+  });
+  return paths;
+}
+
+function restoreOpenPaths(containerId, paths) {
+  if (!paths || paths.length === 0) return;
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const set = new Set(paths);
+  container.querySelectorAll('.branch, .year, .semester, .subject-folder').forEach(el => {
+    const parts = [];
+    let cur = el;
+    while (cur && cur !== container) {
+      if (cur.dataset && cur.dataset.name) parts.unshift(cur.dataset.name);
+      cur = cur.parentElement;
+    }
+    if (set.has(parts.join(' > '))) el.classList.add('open');
   });
 }
 
 // Function to render all sections
 function renderAllSections() {
+  const jutOpen = captureOpenPaths('jutBranches');
+  const chaiOpen = captureOpenPaths('chaiBranches');
+  const notesOpen = captureOpenPaths('notesBranches');
+
   if (data && data.jut) buildSection('jutBranches', data.jut);
   if (data && data.chaibasa) buildSection('chaiBranches', data.chaibasa);
   buildNotesSection('notesBranches', (data && data.notes) ? data.notes : {});
+
+  restoreOpenPaths('jutBranches', jutOpen);
+  restoreOpenPaths('chaiBranches', chaiOpen);
+  restoreOpenPaths('notesBranches', notesOpen);
 }
 
 // Smooth scroll to Notes section from menu drawer
@@ -755,20 +801,39 @@ function cleanKeys(obj) {
   return Object.keys(obj).filter(k => k !== '_init');
 }
 
+function getOrderedNoteBranches(notesSection) {
+  const set = new Set(['CSE', 'ECE', 'EE', 'ME', 'Civil']);
+  if (data) {
+    ['jut', 'chaibasa'].forEach(sec => {
+      if (data[sec] && typeof data[sec] === 'object') {
+        cleanKeys(data[sec]).forEach(b => set.add(b));
+      }
+    });
+  }
+  if (notesSection && typeof notesSection === 'object') {
+    cleanKeys(notesSection).forEach(b => {
+      // Skip accidental empty 'CE' placeholder if it has no semesters/notes
+      if (b === 'CE' && cleanKeys(notesSection[b]).length === 0) return;
+      set.add(b);
+    });
+  }
+  return Array.from(set);
+}
+
 // Build Notes section: Branch -> Semester -> Subject (Modules Folder or Single PDF/Link)
 function buildNotesSection(containerId, notesSection) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
 
-  const branchKeys = cleanKeys(notesSection);
+  const branchKeys = getOrderedNoteBranches(notesSection);
   if (branchKeys.length === 0) {
     container.innerHTML = '<p class="muted" style="text-align:center; padding: 20px 0;">Notes will be uploaded soon by Admin.</p>';
     return;
   }
 
   for (const branchName of branchKeys) {
-    const branchObj = notesSection[branchName] || {};
+    const branchObj = (notesSection && notesSection[branchName]) ? notesSection[branchName] : {};
     const semKeys = cleanKeys(branchObj);
     const branchDiv = document.createElement('div');
     branchDiv.className = 'branch';
